@@ -16,7 +16,7 @@
 
 ## Build (no local Xcode required)
 
-GitHub Actions uses **macos-26**. On every push or pull request, the workflow runs Swift tests, builds the SwiftPM executable and packages an ad-hoc-signed **CleanJunk.app** into a ZIP artifact. Actions artifacts can be downloaded from the workflow run.
+GitHub Actions uses **macos-26**. On branch pushes it runs Swift tests, builds the SwiftPM executable and packages an ad-hoc-signed **CleanJunk.app**. Preview ZIPs and SHA-256 checksums are published as **private GitHub prereleases** to avoid the current GitHub Actions artifact-storage quota. Download previews from the repository's Releases tab after a successful workflow.
 
 Locally with Xcode 26 toolchain on a macOS 26 machine:
 
