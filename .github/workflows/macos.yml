@@ -1,0 +1,42 @@
+name: macOS 26 Build and Tests
+
+on:
+  push:
+    branches: [main, "feat/**"]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Swift tests and app bundle
+    runs-on: macos-26
+    timeout-minutes: 40
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Toolchain
+        run: |
+          swift --version
+          xcodebuild -version
+      - name: Test core
+        run: swift test --parallel
+      - name: Build application
+        run: bash scripts/package-app.sh release
+      - name: Verify bundle
+        run: |
+          test -x dist/CleanJunk.app/Contents/MacOS/CleanJunk
+          plutil -lint dist/CleanJunk.app/Contents/Info.plist
+          codesign --verify --strict --verbose=2 dist/CleanJunk.app
+      - name: Upload test build
+        uses: actions/upload-artifact@v4
+        with:
+          name: CleanJunk-macos26-adhoc
+          path: |
+            dist/*.zip
+            dist/*.sha256
+          if-no-files-found: error
+          retention-days: 14
