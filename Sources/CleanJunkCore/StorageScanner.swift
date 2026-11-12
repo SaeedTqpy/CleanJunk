@@ -15,7 +15,9 @@ public actor StorageScanner {
                      workspace: URL? = nil) throws -> ScanSnapshot {
         var candidates: [ScanItem] = []
         var skipped: [String] = []
-        for scope in ScanPolicy.standardScopes(home: home) {
+        let scopes = ScanPolicy.standardScopes(home: home)
+        let nestedScopeRoots = Set(scopes.map { $0.root.path })
+        for scope in scopes {
             try Task.checkCancellation()
             guard fileManager.fileExists(atPath: scope.root.path) else { continue }
             guard scope.root.resolvingSymlinksInPath().path == scope.root.path else {
@@ -28,6 +30,8 @@ public actor StorageScanner {
                 )
                 for child in children {
                     try Task.checkCancellation()
+                    // A more specific scan scope owns this directory; do not double count it.
+                    if nestedScopeRoots.contains(child.standardizedFileURL.path) { continue }
                     if let names = scope.exactFileNames, !names.contains(child.lastPathComponent) {
                         continue
                     }
