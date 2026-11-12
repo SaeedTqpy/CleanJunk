@@ -1,14 +1,21 @@
-name: macOS 26 Build and Tests
+name: Manual macOS 26 Build and Tests
 
+# Never run on push or PR: this workflow is intentionally manual to protect quota.
 on:
-  push:
-    branches: [main, "feat/**"]
-  pull_request:
-    branches: [main]
   workflow_dispatch:
+    inputs:
+      publish_preview:
+        description: "Publish an ad-hoc signed preview to GitHub Releases"
+        required: true
+        default: false
+        type: boolean
 
 permissions:
   contents: read
+
+concurrency:
+  group: cleanjunk-manual-build
+  cancel-in-progress: false
 
 jobs:
   validate:
@@ -33,9 +40,9 @@ jobs:
           codesign --verify --strict --verbose=2 dist/CleanJunk.app
 
   publish:
-    name: Publish private preview
+    name: Explicit private preview
     needs: validate
-    if: github.event_name == 'push'
+    if: ${{ inputs.publish_preview == true }}
     permissions:
       contents: write
     runs-on: macos-26
@@ -45,7 +52,7 @@ jobs:
         uses: actions/checkout@v4
       - name: Build and package
         run: bash scripts/package-app.sh release
-      - name: Publish private prerelease
+      - name: Publish prerelease (no Actions artifact quota)
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -53,7 +60,7 @@ jobs:
           if ! gh release view "$TAG" >/dev/null 2>&1; then
             gh release create "$TAG" --target "$GITHUB_SHA" --prerelease \
               --title "CleanJunk development preview $TAG" \
-              --notes "Internal macOS 26 build. Ad-hoc signed; not Apple notarized. Do not treat as production-ready."
+              --notes "Internal macOS 26 build. Ad-hoc signed; not Apple notarized."
           fi
           gh release upload "$TAG" dist/*.zip dist/*.sha256 --clobber
           gh release view "$TAG" --json url --jq .url
