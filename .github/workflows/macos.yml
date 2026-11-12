@@ -3,12 +3,10 @@ name: macOS 26 Build and Tests
 on:
   push:
     branches: [main, "feat/**"]
-  pull_request:
-    branches: [main]
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   validate:
@@ -31,12 +29,16 @@ jobs:
           test -x dist/CleanJunk.app/Contents/MacOS/CleanJunk
           plutil -lint dist/CleanJunk.app/Contents/Info.plist
           codesign --verify --strict --verbose=2 dist/CleanJunk.app
-      - name: Upload test build
-        uses: actions/upload-artifact@v4
-        with:
-          name: CleanJunk-macos26-adhoc
-          path: |
-            dist/*.zip
-            dist/*.sha256
-          if-no-files-found: error
-          retention-days: 14
+      - name: Publish private prerelease (Actions artifact storage not required)
+        if: github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="preview-$(printf '%s' "$GITHUB_SHA" | cut -c1-12)"
+          if ! gh release view "$TAG" >/dev/null 2>&1; then
+            gh release create "$TAG" --target "$GITHUB_SHA" --prerelease \
+              --title "CleanJunk development preview $TAG" \
+              --notes "Internal macOS 26 build. Ad-hoc signed; not Apple notarized. Do not treat as production-ready."
+          fi
+          gh release upload "$TAG" dist/*.zip dist/*.sha256 --clobber
+          gh release view "$TAG" --json url --jq .url
