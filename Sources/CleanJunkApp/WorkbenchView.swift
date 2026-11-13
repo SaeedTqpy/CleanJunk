@@ -27,7 +27,7 @@ private enum Destination: String, CaseIterable, Hashable, Identifiable {
 
 struct WorkbenchView: View {
     @StateObject private var model = WorkbenchModel()
-    @State private var selection: Destination? = .overview
+    @State private var selection: Destination? = .deep
     @State private var showConfirmation = false
 
     var body: some View {
