@@ -384,6 +384,18 @@ struct DeepStoragePage: View {
                                           (item.advice == .preserve ? CJStyle.amber : .secondary))
                         .help(item.evidence)
                 }.width(min: 130, ideal: 170)
+                TableColumn("Modified") { item in
+                    if item.modifiedEpoch > 0 {
+                        Text(Date(timeIntervalSince1970: TimeInterval(item.modifiedEpoch)), format: .dateTime.year().month().day())
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    } else {
+                        Text("—").foregroundStyle(.tertiary)
+                    }
+                }.width(min: 95, ideal: 110)
+                TableColumn("Logical") { item in
+                    Text(item.logicalBytes.cjSize).font(.caption.monospacedDigit())
+                }.width(min: 80, ideal: 110)
                 TableColumn("Allocated") { item in
                     Text(item.allocatedBytes.cjSize).font(.caption.monospacedDigit())
                 }.width(min: 80, ideal: 115)
