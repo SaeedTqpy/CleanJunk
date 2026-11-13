@@ -183,6 +183,10 @@ struct OverviewPage: View {
                         }
                         .buttonStyle(.glassProminent)
                         .disabled(model.scanning)
+                        Button(action: deepScan) {
+                            Label("Full Mac Scan", systemImage: "internaldrive")
+                        }
+                        .buttonStyle(.glass)
                         Button(action: browse) {
                             Label("Explore findings", systemImage: "arrow.up.right")
                                 .padding(.horizontal, 8)
