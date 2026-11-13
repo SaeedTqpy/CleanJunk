@@ -1,5 +1,6 @@
 import AppKit
 import Foundation
+import Darwin
 
 // Deterministic, vector-drawn original CleanJunk icon. No third-party assets.
 guard CommandLine.arguments.count == 2 else {
