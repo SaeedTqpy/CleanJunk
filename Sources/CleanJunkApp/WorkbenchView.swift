@@ -5,6 +5,7 @@ import SwiftUI
 private enum Destination: String, CaseIterable, Hashable, Identifiable {
     case overview = "Overview"
     case explorer = "Space Explorer"
+    case deep = "Full Mac Scan"
     case system = "System Data"
     case developers = "Developer Caches"
     case homebrew = "Packages"
