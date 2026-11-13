@@ -42,7 +42,7 @@ struct WorkbenchView: View {
                     }
                 }
                 Section("STATUS") {
-                    Label(model.scanning ? "Scanning disk…" : "Local analysis", systemImage: "circle.dotted")
+                    Label(model.deepRunning ? "Indexing full Mac…" : (model.scanning ? "Scanning caches…" : "Local analysis"), systemImage: "circle.dotted")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                     Label("Privacy by design", systemImage: "lock.shield")
