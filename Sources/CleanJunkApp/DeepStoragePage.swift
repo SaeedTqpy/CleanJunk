@@ -1,11 +1,13 @@
 import AppKit
 import CleanJunkCore
 import SwiftUI
+import UniformTypeIdentifiers
 
 /// All indexed entries are forensic metadata. This page never calls cleanup APIs.
 struct DeepStoragePage: View {
     @ObservedObject var model: WorkbenchModel
     @State private var search = ""
+    @State private var receiptSearch = ""
     @State private var advice = "All"
     @State private var category = "All"
     @State private var confirmFullDisk = false
@@ -31,6 +33,7 @@ struct DeepStoragePage: View {
                 if let summary = model.deepSummary {
                     summaryCards(summary)
                     categoryBreakdown(summary)
+                    macOSReceipts
                     indexedFiles
                     coverage(summary)
                 } else if !model.deepRunning {
@@ -227,6 +230,62 @@ struct DeepStoragePage: View {
                             .frame(width: 100, alignment: .trailing)
                     }
                     .font(.caption)
+                }
+            }
+        }
+    }
+
+    private var macOSReceipts: some View {
+        SurfaceCard {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack {
+                    VStack(alignment: .leading, spacing: 5) {
+                        Eyebrow(text: "MACOS INSTALLER PACKAGE RECEIPTS")
+                        Text("Installed package evidence")
+                            .font(.title3.weight(.semibold))
+                        Text("Reads pkgutil receipts; Homebrew is available separately under Packages.")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    Button {
+                        Task { await model.loadInstallerReceipts() }
+                    } label: {
+                        Label("Read pkgutil inventory", systemImage: "shippingbox")
+                    }
+                    .buttonStyle(.glass)
+                    .disabled(model.inspectingReceipts || model.deepRunning)
+                }
+                if model.inspectingReceipts {
+                    ProgressView("Reading package receipts…").controlSize(.small)
+                }
+                if let receipts = model.installerReceipts {
+                    HStack {
+                        Pill(symbol: "shippingbox",
+                             text: "\(receipts.packageIDs.count.formatted()) package receipts",
+                             tint: CJStyle.violet)
+                        Spacer()
+                        Text("Local, read-only · No uninstallation")
+                            .font(.caption2).foregroundStyle(.secondary)
+                    }
+                    TextField("Find an installer package identifier", text: $receiptSearch)
+                        .textFieldStyle(.roundedBorder)
+                    let matching = receipts.packageIDs
+                        .filter { receiptSearch.isEmpty ||
+                            $0.localizedCaseInsensitiveContains(receiptSearch) }
+                    ForEach(Array(matching.prefix(15)), id: \.self) { identifier in
+                        Text(identifier)
+                            .font(.system(size: 12, design: .monospaced))
+                            .textSelection(.enabled)
+                    }
+                    if matching.count > 15 {
+                        Text("Showing 15 of \(matching.count.formatted()) matching receipts.")
+                            .font(.caption2).foregroundStyle(.secondary)
+                    }
+                    Text(receipts.limitations)
+                        .font(.caption2).foregroundStyle(.secondary)
+                } else {
+                    Text("The system installer receipt list is optional and is not a proof of a package's active usage.")
+                        .font(.caption2).foregroundStyle(.secondary)
                 }
             }
         }
