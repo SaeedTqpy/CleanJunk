@@ -6,6 +6,7 @@ import UniformTypeIdentifiers
 /// All indexed entries are forensic metadata. This page never calls cleanup APIs.
 struct DeepStoragePage: View {
     @ObservedObject var model: WorkbenchModel
+    let reviewCaches: () -> Void
     @State private var search = ""
     @State private var receiptSearch = ""
     @State private var advice = "All"
