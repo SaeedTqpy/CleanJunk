@@ -9,7 +9,7 @@ final class DeepStorageScannerTests: XCTestCase {
             .resolvingSymlinksInPath()
         let home = root.appendingPathComponent("User", isDirectory: true)
         try FileManager.default.createDirectory(at: home, withIntermediateDirectories: true)
-        return (home, root.appendingPathComponent("index.sqlite"))
+        return (home, home.appendingPathComponent("Library/Application Support/CleanJunk/index.sqlite"))
     }
 
     private func write(_ bytes: Int, to url: URL) throws {
