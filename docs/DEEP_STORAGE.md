@@ -8,7 +8,7 @@ This is not equivalent to unrestricted access to the entire Mac. macOS privacy p
 
 ## What the engine does
 
-1. Scans the root volume (/) or an explicitly selected folder/volume.
+1. Opens directly on the Full Mac Scan view but starts resource-intensive scanning only after user confirmation. Scans the root volume (/) or an explicitly selected folder/volume.
 2. Does not follow symbolic links; inventories symlinks as links, not their targets.
 3. Does not skip the contents of .app bundles or hidden directories.
 4. Uses lstat for metadata; does not read personal file bodies, passwords, photos or database contents.
