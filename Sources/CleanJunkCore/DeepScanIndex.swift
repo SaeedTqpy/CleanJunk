@@ -148,7 +148,7 @@ final class DeepScanDatabase {
             SELECT path,category,advice,owner,evidence,logical_bytes,allocated_bytes,
                    modified_epoch,is_directory,is_link,duplicate_hardlink
             FROM files
-            WHERE (?1='' OR instr(lower(path),lower(?1))>0)
+            WHERE (?1='' OR instr(lower(path),lower(?1))>0 OR instr(lower(owner),lower(?1))>0)
               AND (?2='' OR advice=?2)
               AND (?3='' OR category=?3)
             ORDER BY allocated_bytes DESC, path ASC
