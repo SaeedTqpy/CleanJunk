@@ -71,7 +71,7 @@ struct WorkbenchView: View {
                 switch selection ?? .overview {
                 case .overview: OverviewPage(model: model, browse: { selection = .explorer })
                 case .explorer: ArtifactPage(model: model, filter: nil)
-                case .deep: DeepStoragePage(model: model)
+                case .deep: DeepStoragePage(model: model, reviewCaches: { selection = .explorer })
                 case .system: SystemDataPage(model: model)
                 case .developers: DeveloperPage(model: model)
                 case .homebrew: HomebrewPage(model: model)
