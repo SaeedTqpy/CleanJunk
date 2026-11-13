@@ -8,15 +8,16 @@
 
 - **Overview**: measured footprints by category, risk controls, scan completeness information.
 - **Space Explorer**: real filesystem inspection of selected cache roots, per-artifact estimated allocated size, filters, Finder reveal and explicit multi-select.
-- **Developer workspaces**: opt-in folder picker; detects nested generated directories (node_modules, .venv, .next, .gradle, target etc.). Does not remove source files.
+- **Developer workspaces**: opt-in folder picker; detects generated directories (node_modules, .venv, .next, .gradle, target etc.) without touching source files. A read-only project inventory discovers Node.js, Python, Rust and Go manifests. Node.js direct dependency declarations and npm lockfile entry counts are parsed; Python/Rust/Go dependency resolution is **not yet implemented**. Source-level import usage is **not** inferred.
 - **Homebrew inventory**: reads brew info --json=v2 --installed, reports installed-on-request intent, dependency counts, and displays brew autoremove --dry-run results. **Never calls brew uninstall or autoremove without --dry-run.**
-- **Safe cleanup**: per-item review, policy validation, symbolic-link rejection and move-to-Trash (never rm -rf). Protected Docker virtual disks and Xcode Archives are inspect-only.
+- **Safe cleanup**: per-item review, policy validation, symbolic-link rejection, scan-time inode/device identity and revalidation before Finder Trash. Incomplete scans are not eligible for cleanup. Docker VM disks, simulator data, SDK installations and Xcode Archives are inspect-only. The current path-based operation still has a TOCTOU window: do not deploy it as an unattended cleaner.
+- **System Data diagnostics**: read-only filesystem capacity, local Time Machine snapshot list, and explicit caveats: neither snapshot count nor listed cache sizes equal the macOS System Data category.
 - **Audit trail**: local JSON activity log (atomic writes) in ~/Library/Application Support/CleanJunk.
 - **Native design**: NavigationSplitView sidebar, SwiftUI Table, GlassEffectContainer, glass buttons, SF Symbols, dark/light and accessibility-aware system materials.
 
 ## Build (no local Xcode required)
 
-GitHub Actions uses **macos-26**. On branch pushes it runs Swift tests, builds the SwiftPM executable and packages an ad-hoc-signed **CleanJunk.app**. Preview ZIPs and SHA-256 checksums are published as **private GitHub prereleases** to avoid the current GitHub Actions artifact-storage quota. Download previews from the repository's Releases tab after a successful workflow.
+**GitHub Actions is manual-only.** Pushes and pull requests do not run CI. To validate a batch of changes, open Actions → **Manual macOS 26 Build and Tests** → Run workflow. Leave `publish_preview` **off** for tests and packaging only; turn it on only when a downloadable ad-hoc-signed ZIP and SHA-256 file are intentionally required. Preview releases avoid the exhausted Actions artifact quota, but publishing still uses macOS runner minutes. No workflow has been run for changes added after the initial tested foundation.
 
 Locally with Xcode 26 toolchain on a macOS 26 machine:
 
@@ -29,14 +30,14 @@ Requires macOS 26+. The ad-hoc signature is for local testing only; it is **not*
 ## Security policy
 
 1. **Read-only scan first**. A scan never deletes anything.
-2. Cleanup acts only on explicit selections and verifies location, risk category, allowed scan root and symbolic-link resolution again immediately beforehand.
+2. Cleanup acts only on explicit selections, requires a complete measurement and a matching device/inode identity, then rechecks location, category, root and symlink resolution before invoking Finder Trash. This reduces but **does not eliminate** TOCTOU races.
 3. Finder Trash is used; users recover via Finder. Emptying Trash is out of scope, and space is not promised as reclaimed until Trash is emptied.
-4. Docker virtual disks, Xcode archives and system folders never enter the deletion path.
+4. Docker virtual disks, Simulator device data, SDK installations, Xcode archives and system folders never enter the deletion path.
 5. Homebrew is informational only. It is unsafe to call an installed package unused solely because it is old or has no Homebrew dependents: tools outside Homebrew may still need it.
 6. APFS clone sharing, hard links and sparse files make displayed allocated-size totals **estimates**. Incomplete scans are marked, and the scan covers known user paths rather than pretending to measure the whole macOS System Data category.
 7. No blanket privileged execution, filesystem access outside user-approved scope, telemetry or backend.
 
-**Known limitations before production release:** process cancellation and timeouts, dependency adapters beyond Homebrew, race-resistant filesystem operations, database-backed operation log and recovery workflow, APFS clone-aware accounting, hard-link deduplication, privilege/permission/accessibility tests, UI testing, profiling, notarization and distribution.
+**Known limitations before production release:** descriptor-relative race-resistant filesystem operations, database-backed operation journal and tested undo, source-level dependency usage analysis, multi-manager uninstall adapters, robust scan cancellation and progress, APFS clone-aware accounting, hard-link deduplication, privilege/permission/accessibility tests, UI testing, profiling, notarization and distribution. Command execution now has bounded runtime and stdout, but the scanner remains limited to known scopes.
 
 ## Source map
 
