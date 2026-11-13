@@ -83,8 +83,12 @@ public enum ScanPolicy {
 
     public static func validateRemoval(_ item: ScanItem, home: URL,
                                        workspace: URL?) throws {
-        guard item.risk != .protected else { throw CleanJunkError.forbiddenPath }
+        guard item.isTrashEligible else { throw CleanJunkError.forbiddenPath }
         let target = URL(fileURLWithPath: item.path).standardizedFileURL
+        guard let recordedIdentity = item.identity,
+              FileIdentity.capture(at: target) == recordedIdentity else {
+            throw CleanJunkError.pathChanged
+        }
         let root = URL(fileURLWithPath: item.scopeRootPath).standardizedFileURL
 
         // Require every path component to remain the same after resolving symlinks.
