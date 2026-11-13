@@ -7,6 +7,8 @@ import SwiftUI
 final class WorkbenchModel: ObservableObject {
     @Published private(set) var snapshot = ScanSnapshot(items: [], skippedPaths: [])
     @Published private(set) var brew: BrewReport?
+    @Published private(set) var workspaceReport: WorkspaceDependencyReport?
+    @Published private(set) var inspectingWorkspace = false
     @Published private(set) var history: [TrashRecord] = []
     @Published private(set) var workspace: URL?
     @Published private(set) var scanning = false
@@ -21,6 +23,7 @@ final class WorkbenchModel: ObservableObject {
     private let removal = RemovalService()
     private let activity = ActivityLog()
     private let inspector = HomebrewInspector()
+    private let workspaceInspector = WorkspaceDependencyInspector()
 
     var selectedEligible: [ScanItem] {
         snapshot.items.filter { selectedItemPaths.contains($0.id) && $0.isTrashEligible }
@@ -56,12 +59,26 @@ final class WorkbenchModel: ObservableObject {
         }
     }
 
+    func inspectWorkspace() async {
+        guard let workspace, !inspectingWorkspace else { return }
+        inspectingWorkspace = true
+        defer { inspectingWorkspace = false }
+        do {
+            workspaceReport = try await workspaceInspector.inspect(workspace: workspace)
+        } catch {
+            workspaceReport = nil
+            errorMessage = error.localizedDescription
+        }
+    }
+
     func setWorkspace(_ url: URL) async {
         do {
             try ScanPolicy.validateWorkspace(url, home: FileManager.default.homeDirectoryForCurrentUser)
             workspace = url.standardizedFileURL
             selectedItemPaths = []
+            workspaceReport = nil
             await refresh()
+            await inspectWorkspace()
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -69,6 +86,7 @@ final class WorkbenchModel: ObservableObject {
 
     func removeWorkspace() async {
         workspace = nil
+        workspaceReport = nil
         selectedItemPaths = []
         await refresh()
     }
@@ -102,6 +120,7 @@ final class WorkbenchModel: ObservableObject {
         selectedItemPaths = []
         await loadHistory()
         await refresh()
+        if workspace != nil { await inspectWorkspace() }
         if moved > 0 {
             notice = "\(moved) item(s) moved to Finder's Trash. Space is reclaimed only after Trash is emptied."
         }
