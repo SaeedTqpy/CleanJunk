@@ -45,6 +45,7 @@ The **Full Mac Scan** sidebar page can attempt a read-only, file-by-file invento
 
 | Feature | Implemented behavior | Important limit |
 |---|---|---|
+| Full Mac Intelligence | Comprehensive read-only file-by-file metadata indexing, evidence-based risk classification, SQLite search, CSV export, pkgutil receipts | Protected and inaccessible locations are reported; no automatic file deletion |
 | Overview | Scan summary, measured footprints, risk classification, incomplete-scan warnings | Does not report all macOS System Data |
 | Space Explorer | Browse, filter and search cache artifacts, reveal in Finder, select exact items | Partial and protected items cannot be removed |
 | Developer workspace | User-selected folder; detects generated directories such as node_modules, .next, .venv, target and .gradle | Never considers project source code a cleanup artifact |
