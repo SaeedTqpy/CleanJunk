@@ -128,6 +128,12 @@ public actor DeepStorageScanner {
                 }
 
                 examined += 1
+                if examined % 50_000 == 0 {
+                    let remaining = (try? fileManager.attributesOfFileSystem(forPath: parent.path)[.systemFreeSize] as? NSNumber)?.int64Value ?? 0
+                    if remaining > 0 && remaining < 256 * 1_024 * 1_024 {
+                        throw DeepScanError.insufficientSpace
+                    }
+                }
                 var metadata = stat()
                 guard lstat(path, &metadata) == 0 else {
                     warn(url, "lstat unavailable: " + String(errno))
