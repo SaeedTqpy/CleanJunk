@@ -91,6 +91,39 @@ final class StorageScannerTests: XCTestCase {
         XCTAssertThrowsError(try ScanPolicy.validateWorkspace(URL(fileURLWithPath: "/"), home: home))
     }
 
+    func testScannedFileIdentityMustMatchAtCleanup() async throws {
+        let home = try temporaryHome()
+        defer { try? FileManager.default.removeItem(at: home) }
+        let root = home.appendingPathComponent("Library/Caches", isDirectory: true)
+        let target = root.appendingPathComponent("temporary.txt")
+        try write(128, to: target)
+
+        let report = try await StorageScanner().scan(home: home)
+        let item = try XCTUnwrap(report.items.first { $0.path == target.path })
+        XCTAssertNotNil(item.identity)
+        XCTAssertTrue(item.isTrashEligible)
+        XCTAssertNoThrow(try ScanPolicy.validateRemoval(item, home: home, workspace: nil))
+
+        let old = root.appendingPathComponent("previous.txt")
+        try FileManager.default.moveItem(at: target, to: old)
+        try write(256, to: target)
+        XCTAssertThrowsError(try ScanPolicy.validateRemoval(item, home: home, workspace: nil))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: target.path))
+    }
+
+    func testIncompleteScanCannotBeSelectedForTrash() async throws {
+        let home = try temporaryHome()
+        defer { try? FileManager.default.removeItem(at: home) }
+        for index in 0..<12 {
+            try write(256, to: home.appendingPathComponent("Library/Caches/many/item\(index)"))
+        }
+        let report = try await StorageScanner(maxVisitedPerCandidate: 1).scan(home: home)
+        let item = try XCTUnwrap(report.items.first { $0.name == "many" })
+        XCTAssertFalse(item.isSizeComplete)
+        XCTAssertFalse(item.isTrashEligible)
+        XCTAssertThrowsError(try ScanPolicy.validateRemoval(item, home: home, workspace: nil))
+    }
+
     func testPartialMeasurementsAreExplicit() async throws {
         let home = try temporaryHome()
         defer { try? FileManager.default.removeItem(at: home) }

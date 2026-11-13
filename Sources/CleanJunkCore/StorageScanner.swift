@@ -39,7 +39,13 @@ public actor StorageScanner {
                         skipped.append(child.path)
                         continue
                     }
+                    guard let before = FileIdentity.capture(at: child) else {
+                        skipped.append(child.path)
+                        continue
+                    }
                     let measurement = measure(child)
+                    let stable = FileIdentity.capture(at: child) == before
+                    if !stable { skipped.append(child.path) }
                     candidates.append(ScanItem(
                         path: child.standardizedFileURL.path,
                         scopeRootPath: scope.root.path,
@@ -47,7 +53,8 @@ public actor StorageScanner {
                         risk: scope.risk,
                         rationale: scope.rationale,
                         sizeBytes: measurement.bytes,
-                        isSizeComplete: measurement.complete
+                        isSizeComplete: measurement.complete && stable,
+                        identity: stable ? before : nil
                     ))
                 }
             } catch {
@@ -107,7 +114,13 @@ public actor StorageScanner {
             guard ScanPolicy.projectArtifactNames.contains(url.lastPathComponent),
                   isDirectory(url) else { continue }
             enumerator.skipDescendants()
+            guard let before = FileIdentity.capture(at: url) else {
+                skipped.append(url.path)
+                continue
+            }
             let measurement = measure(url)
+            let stable = FileIdentity.capture(at: url) == before
+            if !stable { skipped.append(url.path) }
             found.append(ScanItem(
                 path: url.standardizedFileURL.path,
                 scopeRootPath: workspace.standardizedFileURL.path,
@@ -115,7 +128,8 @@ public actor StorageScanner {
                 risk: .review,
                 rationale: "Project-generated directory; review before trashing. Reinstallation or rebuilding may be necessary.",
                 sizeBytes: measurement.bytes,
-                isSizeComplete: measurement.complete
+                isSizeComplete: measurement.complete && stable,
+                identity: stable ? before : nil
             ))
         }
         return (found, skipped)
@@ -126,12 +140,17 @@ public actor StorageScanner {
                                          .totalFileAllocatedSizeKey, .fileAllocatedSizeKey, .fileSizeKey]
         if isSymlink(url) { return (0, false) }
         if !isDirectory(url) {
-            return (allocatedBytes(url, keys: keys), true)
+            guard let bytes = allocatedBytes(url, keys: keys) else { return (0, false) }
+            return (bytes, true)
         }
+        var encounteredError = false
         guard let enumerator = fileManager.enumerator(at: url,
                                                       includingPropertiesForKeys: Array(keys),
                                                       options: [],
-                                                      errorHandler: { _, _ in true }) else {
+                                                      errorHandler: { _, _ in
+                                                          encounteredError = true
+                                                          return true
+                                                      }) else {
             return (0, false)
         }
         var total: Int64 = 0
@@ -145,12 +164,16 @@ public actor StorageScanner {
                 continue
             }
             if !isDirectory(child) {
-                let next = allocatedBytes(child, keys: keys)
+                guard let next = allocatedBytes(child, keys: keys) else {
+                    encounteredError = true
+                    continue
+                }
                 let (sum, overflow) = total.addingReportingOverflow(next)
+                if overflow { encounteredError = true }
                 total = overflow ? Int64.max : sum
             }
         }
-        return (total, true)
+        return (total, !encounteredError)
     }
 
     private func isDirectory(_ url: URL) -> Bool {
@@ -161,8 +184,11 @@ public actor StorageScanner {
         (try? url.resourceValues(forKeys: [.isSymbolicLinkKey]).isSymbolicLink) == true
     }
 
-    private func allocatedBytes(_ url: URL, keys: Set<URLResourceKey>) -> Int64 {
-        guard let values = try? url.resourceValues(forKeys: keys) else { return 0 }
-        return Int64(max(0, values.totalFileAllocatedSize ?? values.fileAllocatedSize ?? values.fileSize ?? 0))
+    private func allocatedBytes(_ url: URL, keys: Set<URLResourceKey>) -> Int64? {
+        guard let values = try? url.resourceValues(forKeys: keys),
+              let size = values.totalFileAllocatedSize ?? values.fileAllocatedSize ?? values.fileSize else {
+            return nil
+        }
+        return Int64(max(0, size))
     }
 }

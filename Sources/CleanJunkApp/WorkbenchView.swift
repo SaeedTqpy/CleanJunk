@@ -5,6 +5,7 @@ import SwiftUI
 private enum Destination: String, CaseIterable, Hashable, Identifiable {
     case overview = "Overview"
     case explorer = "Space Explorer"
+    case system = "System Data"
     case developers = "Developer Caches"
     case homebrew = "Packages"
     case history = "Activity"
@@ -14,6 +15,7 @@ private enum Destination: String, CaseIterable, Hashable, Identifiable {
         switch self {
         case .overview: return "square.grid.2x2.fill"
         case .explorer: return "internaldrive.fill"
+        case .system: return "externaldrive.fill"
         case .developers: return "curlybraces.square.fill"
         case .homebrew: return "shippingbox.fill"
         case .history: return "clock.arrow.circlepath"
@@ -67,6 +69,7 @@ struct WorkbenchView: View {
                 switch selection ?? .overview {
                 case .overview: OverviewPage(model: model, browse: { selection = .explorer })
                 case .explorer: ArtifactPage(model: model, filter: nil)
+                case .system: SystemDataPage(model: model)
                 case .developers: DeveloperPage(model: model)
                 case .homebrew: HomebrewPage(model: model)
                 case .history: HistoryPage(model: model)
@@ -92,7 +95,7 @@ struct WorkbenchView: View {
                             }
                             .buttonStyle(.glassProminent)
                             .tint(CJStyle.mint)
-                            .disabled(model.trashing)
+                            .disabled(model.trashing || model.scanning)
                         }
                     }
                 }

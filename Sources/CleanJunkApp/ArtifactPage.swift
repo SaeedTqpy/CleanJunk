@@ -193,6 +193,8 @@ struct DeveloperPage: View {
                     .font(.caption).foregroundStyle(.secondary)
             }
 
+            WorkspaceDependencyPanel(model: model)
+
             ArtifactPage(model: model, filter: nil)
                 .padding(.horizontal, -28)
         }

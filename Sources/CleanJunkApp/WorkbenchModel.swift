@@ -7,7 +7,15 @@ import SwiftUI
 final class WorkbenchModel: ObservableObject {
     @Published private(set) var snapshot = ScanSnapshot(items: [], skippedPaths: [])
     @Published private(set) var brew: BrewReport?
+    @Published private(set) var workspaceReport: WorkspaceDependencyReport?
+    @Published private(set) var sourceReports: [String: SourceReferenceReport] = [:]
+    @Published private(set) var analyzingSources = Set<String>()
+    @Published private(set) var systemStorage: SystemStorageReport?
+    @Published private(set) var inspectingSystemStorage = false
+    @Published private(set) var inspectingWorkspace = false
     @Published private(set) var history: [TrashRecord] = []
+    @Published private(set) var cleanupOperations: [CleanupOperation] = []
+    @Published private(set) var journalCorrupted = false
     @Published private(set) var workspace: URL?
     @Published private(set) var scanning = false
     @Published private(set) var inspectingBrew = false
@@ -18,9 +26,12 @@ final class WorkbenchModel: ObservableObject {
     @Published var notice: String?
 
     private let scanner = StorageScanner()
-    private let removal = RemovalService()
+    private let executor = CleanupExecutor()
     private let activity = ActivityLog()
     private let inspector = HomebrewInspector()
+    private let workspaceInspector = WorkspaceDependencyInspector()
+    private let sourceInspector = SourceReferenceInspector()
+    private let systemInspector = SystemStorageInspector()
 
     var selectedEligible: [ScanItem] {
         snapshot.items.filter { selectedItemPaths.contains($0.id) && $0.isTrashEligible }
@@ -56,12 +67,54 @@ final class WorkbenchModel: ObservableObject {
         }
     }
 
+    func inspectSystemStorage() async {
+        guard !inspectingSystemStorage else { return }
+        inspectingSystemStorage = true
+        defer { inspectingSystemStorage = false }
+        do {
+            systemStorage = try await systemInspector.inspect()
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    func inspectWorkspace() async {
+        guard let workspace, !inspectingWorkspace else { return }
+        inspectingWorkspace = true
+        defer { inspectingWorkspace = false }
+        do {
+            workspaceReport = try await workspaceInspector.inspect(workspace: workspace)
+        } catch {
+            workspaceReport = nil
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    func analyzeSourceReferences(_ project: WorkspaceProject) async {
+        guard let workspace, project.ecosystem == .node,
+              !analyzingSources.contains(project.manifestPath) else { return }
+        analyzingSources.insert(project.manifestPath)
+        defer { analyzingSources.remove(project.manifestPath) }
+        do {
+            let result = try await sourceInspector.inspect(project: project, workspace: workspace)
+            guard self.workspace == workspace else { return }
+            sourceReports[project.id] = result
+        } catch is CancellationError {
+            notice = "Source analysis cancelled."
+        } catch {
+            errorMessage = "Source analysis failed: " + error.localizedDescription
+        }
+    }
+
     func setWorkspace(_ url: URL) async {
         do {
             try ScanPolicy.validateWorkspace(url, home: FileManager.default.homeDirectoryForCurrentUser)
             workspace = url.standardizedFileURL
             selectedItemPaths = []
+            workspaceReport = nil
+            sourceReports = [:]
             await refresh()
+            await inspectWorkspace()
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -69,16 +122,20 @@ final class WorkbenchModel: ObservableObject {
 
     func removeWorkspace() async {
         workspace = nil
+        workspaceReport = nil
+        sourceReports = [:]
         selectedItemPaths = []
         await refresh()
     }
 
     func loadHistory() async {
         history = await activity.all()
+        cleanupOperations = await executor.operations()
+        journalCorrupted = await executor.journalIsCorrupted()
     }
 
     func trashSelected() async {
-        guard !trashing, !selectedEligible.isEmpty else { return }
+        guard !trashing, !scanning, !selectedEligible.isEmpty else { return }
         trashing = true
         errorMessage = nil
         notice = nil
@@ -88,10 +145,11 @@ final class WorkbenchModel: ObservableObject {
         var failures: [String] = []
         for item in targets {
             do {
-                let receipt = try await removal.trash(item, workspace: workspace)
+                let result = try await executor.trash(item, workspace: workspace)
                 moved += 1
+                if let warning = result.auditWarning { failures.append(warning) }
                 do {
-                    try await activity.append(receipt)
+                    try await activity.append(result.record)
                 } catch {
                     failures.append("Moved \(item.name), but history could not be saved: \(error.localizedDescription)")
                 }
@@ -102,11 +160,29 @@ final class WorkbenchModel: ObservableObject {
         selectedItemPaths = []
         await loadHistory()
         await refresh()
+        if workspace != nil { await inspectWorkspace() }
         if moved > 0 {
             notice = "\(moved) item(s) moved to Finder's Trash. Space is reclaimed only after Trash is emptied."
         }
         if !failures.isEmpty {
             errorMessage = failures.prefix(5).joined(separator: "\n")
+        }
+    }
+
+    func restoreOperation(_ operation: CleanupOperation) async {
+        guard !trashing, !scanning else { return }
+        trashing = true
+        errorMessage = nil
+        defer { trashing = false }
+        do {
+            try await executor.restore(operation.id)
+            notice = "Item restored to its original location."
+            await loadHistory()
+            await refresh()
+        } catch {
+            errorMessage = "Restore was not completed: " + error.localizedDescription +
+                ". If the original path is occupied or Trash is on another volume, restore manually in Finder."
+            await loadHistory()
         }
     }
 

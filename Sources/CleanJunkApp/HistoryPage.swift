@@ -4,6 +4,10 @@ import SwiftUI
 struct HistoryPage: View {
     @ObservedObject var model: WorkbenchModel
 
+    private var unresolved: Int {
+        model.cleanupOperations.filter { $0.state == .prepared || $0.state == .requiresReconciliation }.count
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
             HStack {
@@ -11,14 +15,12 @@ struct HistoryPage: View {
                     Eyebrow(text: "LOCAL AUDIT TRAIL")
                     Text("Cleanup activity")
                         .font(.system(size: 30, weight: .semibold, design: .rounded))
-                    Text("A locally stored record of artifacts sent to Finder's Trash.")
+                    Text("Every operation is recorded before it touches the filesystem.")
                         .font(.subheadline).foregroundStyle(.secondary)
                 }
                 Spacer()
-                Button {
-                    model.showTrash()
-                } label: {
-                    Label("Open Trash", systemImage: "trash")
+                Button { model.showTrash() } label: {
+                    Label("Open Finder Trash", systemImage: "trash")
                 }
                 .buttonStyle(.glass)
             }
@@ -29,40 +31,84 @@ struct HistoryPage: View {
                     Image(systemName: "clock.arrow.circlepath")
                         .font(.title).foregroundStyle(CJStyle.mint)
                     VStack(alignment: .leading, spacing: 5) {
-                        Text("\(model.history.count) recorded operations")
+                        Text("\(model.cleanupOperations.count) journaled operations")
                             .font(.headline)
-                        Text("Files remain in Trash until it is emptied. CleanJunk never empties Trash automatically. Finder handles recovery.")
+                        Text("Files remain in Trash until emptied. Original locations are never overwritten during restoration.")
                             .font(.caption).foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    if unresolved > 0 {
+                        Pill(symbol: "exclamationmark.triangle", text: "\(unresolved) unresolved", tint: CJStyle.amber)
                     }
                 }
             }
 
-            if model.history.isEmpty {
+            if model.journalCorrupted {
+                Label("Cleanup journal cannot be decoded. Operations are disabled to avoid overwriting audit history. Back up the existing journal and investigate before continuing.",
+                      systemImage: "exclamationmark.shield.fill")
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(CJStyle.amber)
+                    .padding(10)
+                    .background(CJStyle.amber.opacity(0.10),
+                                in: RoundedRectangle(cornerRadius: 12))
+            }
+
+            if model.cleanupOperations.isEmpty {
                 ContentUnavailableView("No cleanup operations", systemImage: "clock",
-                                       description: Text("Your cleanup history will appear here after an approved operation."))
+                                       description: Text("Approved operations will appear here, including interrupted transactions."))
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
-                Table(model.history) {
-                    TableColumn("Artifact") { record in
+                Table(model.cleanupOperations) {
+                    TableColumn("Artifact") { operation in
                         VStack(alignment: .leading, spacing: 3) {
-                            Text(URL(fileURLWithPath: record.originalPath).lastPathComponent)
+                            Text(URL(fileURLWithPath: operation.sourcePath).lastPathComponent)
                                 .font(.subheadline.weight(.medium))
-                            Text(record.originalPath).font(.caption2).foregroundStyle(.secondary)
+                            Text(operation.sourcePath)
+                                .font(.caption2).foregroundStyle(.tertiary)
                                 .lineLimit(1).truncationMode(.middle)
                         }
+                        .help(operation.detail ?? operation.sourcePath)
                     }
-                    TableColumn("Category") { record in
-                        Text(record.category.rawValue).font(.caption)
+                    TableColumn("Status") { operation in
+                        switch operation.state {
+                        case .prepared:
+                            Pill(symbol: "clock", text: "Pending review", tint: CJStyle.amber)
+                        case .movedToTrash:
+                            Pill(symbol: "trash", text: "In Trash", tint: CJStyle.violet)
+                        case .restored:
+                            Pill(symbol: "arrow.uturn.backward", text: "Restored", tint: CJStyle.mint)
+                        case .failed, .requiresReconciliation:
+                            Pill(symbol: "exclamationmark.triangle", text: "Check in Finder", tint: CJStyle.amber)
+                        }
+                    }.width(min: 130, ideal: 165)
+                    TableColumn("When") { operation in
+                        Text(operation.startedAt, format: .dateTime.month().day().hour().minute())
+                            .font(.caption).foregroundStyle(.secondary)
                     }.width(min: 125, ideal: 150)
-                    TableColumn("Estimated size") { record in
-                        Text(record.sizeBytes.cjSize).monospacedDigit()
-                    }.width(min: 95, ideal: 130)
-                    TableColumn("Moved") { record in
-                        Text(record.performedAt, format: .dateTime.month().day().hour().minute())
-                    }.width(min: 125, ideal: 160)
+                    TableColumn("Restore") { operation in
+                        Button {
+                            Task { await model.restoreOperation(operation) }
+                        } label: {
+                            Label("Restore", systemImage: "arrow.uturn.backward")
+                                .labelStyle(.titleOnly)
+                        }
+                        .buttonStyle(.glass)
+                        .disabled(operation.state != .movedToTrash || model.trashing || model.scanning ||
+                                  operation.trashPath == nil)
+                        .help("Restores only when the original location is empty and the Trash entry matches the recorded file identity.")
+                    }.width(min: 85, ideal: 115)
                 }
             }
-            Spacer(minLength: 0)
+
+            if unresolved > 0 {
+                Label("An interrupted or ambiguous move needs manual verification in Finder. CleanJunk never assumes it succeeded.",
+                      systemImage: "exclamationmark.triangle")
+                    .font(.caption).foregroundStyle(CJStyle.amber)
+            }
+            Label("Restoration may be unavailable for external-volume Trash, modified items, or occupied original paths.",
+                  systemImage: "info.circle")
+                .font(.caption2).foregroundStyle(.secondary)
+                .padding(.bottom, 15)
         }
         .padding(.horizontal, 28)
     }

@@ -14,10 +14,12 @@ public actor RemovalService {
     public func trash(_ candidate: ScanItem, workspace: URL?) throws -> TrashRecord {
         try ScanPolicy.validateRemoval(candidate, home: home, workspace: workspace)
         let url = URL(fileURLWithPath: candidate.path).standardizedFileURL
-        guard fileManager.fileExists(atPath: url.path) else { throw CleanJunkError.pathChanged }
-        var destination: NSURL?
-        try fileManager.trashItem(at: url, resultingItemURL: &destination)
-        return TrashRecord(originalPath: url.path, trashPath: (destination as URL?)?.path,
+        guard let recordedIdentity = candidate.identity,
+              FileIdentity.capture(at: url) == recordedIdentity else {
+            throw CleanJunkError.pathChanged
+        }
+        let destination = try SafeTrashMover.move(candidate, home: home, workspace: workspace)
+        return TrashRecord(originalPath: url.path, trashPath: destination.path,
                            sizeBytes: candidate.sizeBytes, category: candidate.category)
     }
 }

@@ -104,25 +104,16 @@ public actor HomebrewInspector {
     }
 
     private func command(_ path: String, _ arguments: [String]) throws -> String {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: path)
-        process.arguments = arguments
-        var environment = ProcessInfo.processInfo.environment
-        environment["HOMEBREW_NO_AUTO_UPDATE"] = "1"
-        environment["HOMEBREW_NO_ANALYTICS"] = "1"
-        environment["HOMEBREW_NO_COLOR"] = "1"
-        process.environment = environment
-
-        let output = Pipe()
-        process.standardOutput = output
-        process.standardError = FileHandle.nullDevice
-        try process.run()
-        // Drain stdout before waiting to avoid pipe-buffer deadlocks for large inventories.
-        let data = output.fileHandleForReading.readDataToEndOfFile()
-        process.waitUntilExit()
-        guard process.terminationStatus == 0 else {
-            throw BrewInspectionError.failed("\(arguments.joined(separator: " ")) exited \(process.terminationStatus)")
-        }
-        return String(data: data, encoding: .utf8) ?? ""
+        try SafeProcessRunner.run(
+            executable: URL(fileURLWithPath: path),
+            arguments: arguments,
+            environmentOverrides: [
+                "HOMEBREW_NO_AUTO_UPDATE": "1",
+                "HOMEBREW_NO_ANALYTICS": "1",
+                "HOMEBREW_NO_COLOR": "1"
+            ],
+            timeoutSeconds: 35
+        )
     }
+
 }

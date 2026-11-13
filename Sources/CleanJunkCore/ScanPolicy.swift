@@ -55,6 +55,30 @@ public enum ScanPolicy {
             ScanScope(root: at("Library/Logs/DiagnosticReports"),
                       category: .developerLogs, risk: .review,
                       rationale: "Crash diagnostics; useful for investigating current defects."),
+            ScanScope(root: at("Library/Developer/CoreSimulator/Devices"),
+                      category: .simulator, risk: .protected,
+                      rationale: "Simulator device containers include app data and user state. Remove only using Simulator management tools."),
+            ScanScope(root: at(".android/avd"),
+                      category: .simulator, risk: .protected,
+                      rationale: "Android Virtual Devices contain persistent emulator data. Manage with Android Studio."),
+            ScanScope(root: at("Library/Android/sdk/system-images"),
+                      category: .sdk, risk: .protected,
+                      rationale: "Android system images are installed SDK components; uninstall with sdkmanager or Android Studio."),
+            ScanScope(root: at("Library/Developer/Xcode/iOS DeviceSupport"),
+                      category: .sdk, risk: .protected,
+                      rationale: "Device support may contain debug symbols and SDK data. Keep until explicitly managed by Xcode."),
+            ScanScope(root: at(".cargo/registry/cache"),
+                      category: .packageCache, risk: .review,
+                      rationale: "Cargo crate downloads; rebuilding offline can fail. Review before Trash."),
+            ScanScope(root: at(".cache/go-build"),
+                      category: .packageCache, risk: .review,
+                      rationale: "Go build cache; prefer go clean -cache when Go is idle."),
+            ScanScope(root: at(".cache/uv"),
+                      category: .packageCache, risk: .review,
+                      rationale: "uv cache may include hardlinked build assets; prefer uv cache clean or prune."),
+            ScanScope(root: at("Library/Caches/uv"),
+                      category: .packageCache, risk: .review,
+                      rationale: "uv cache may include hardlinked build assets; prefer uv cache clean or prune."),
             ScanScope(root: at("Library/Containers/com.docker.docker/Data/vms/0/data"),
                       category: .docker, risk: .protected,
                       rationale: "Docker virtual disk. NEVER remove directly; use Docker's own volume/image tools.",
@@ -83,8 +107,12 @@ public enum ScanPolicy {
 
     public static func validateRemoval(_ item: ScanItem, home: URL,
                                        workspace: URL?) throws {
-        guard item.risk != .protected else { throw CleanJunkError.forbiddenPath }
+        guard item.isTrashEligible else { throw CleanJunkError.forbiddenPath }
         let target = URL(fileURLWithPath: item.path).standardizedFileURL
+        guard let recordedIdentity = item.identity,
+              FileIdentity.capture(at: target) == recordedIdentity else {
+            throw CleanJunkError.pathChanged
+        }
         let root = URL(fileURLWithPath: item.scopeRootPath).standardizedFileURL
 
         // Require every path component to remain the same after resolving symlinks.

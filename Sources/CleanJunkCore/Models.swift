@@ -7,6 +7,8 @@ public enum ArtifactCategory: String, CaseIterable, Codable, Sendable, Identifia
     case developerLogs = "Developer logs"
     case workspace = "Project artifacts"
     case docker = "Docker data"
+    case simulator = "Simulator data"
+    case sdk = "SDKs & toolchains"
 
     public var id: String { rawValue }
     public var symbol: String {
@@ -17,6 +19,8 @@ public enum ArtifactCategory: String, CaseIterable, Codable, Sendable, Identifia
         case .developerLogs: return "doc.text.magnifyingglass"
         case .workspace: return "chevron.left.forwardslash.chevron.right"
         case .docker: return "externaldrive.fill"
+        case .simulator: return "iphone.gen3"
+        case .sdk: return "wrench.and.screwdriver.fill"
         }
     }
 }
@@ -47,13 +51,15 @@ public struct ScanItem: Codable, Hashable, Identifiable, Sendable {
     public let rationale: String
     public let sizeBytes: Int64
     public let isSizeComplete: Bool
+    public let identity: FileIdentity?
 
     public var id: String { path }
     public var name: String { URL(fileURLWithPath: path).lastPathComponent }
-    public var isTrashEligible: Bool { risk != .protected }
+    public var isTrashEligible: Bool { risk != .protected && isSizeComplete && identity != nil }
 
     public init(path: String, scopeRootPath: String, category: ArtifactCategory, risk: RiskLevel,
-                rationale: String, sizeBytes: Int64, isSizeComplete: Bool) {
+                rationale: String, sizeBytes: Int64, isSizeComplete: Bool,
+                identity: FileIdentity? = nil) {
         self.path = path
         self.scopeRootPath = scopeRootPath
         self.category = category
@@ -61,6 +67,7 @@ public struct ScanItem: Codable, Hashable, Identifiable, Sendable {
         self.rationale = rationale
         self.sizeBytes = sizeBytes
         self.isSizeComplete = isSizeComplete
+        self.identity = identity
     }
 }
 
