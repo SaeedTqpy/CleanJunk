@@ -124,6 +124,16 @@ final class WorkbenchModel: ObservableObject {
         }
     }
 
+    func exportDeepCSV(to url: URL) async {
+        guard deepSummary != nil, !deepRunning else { return }
+        do {
+            try await deepIndex.exportCSV(to: url)
+            notice = "File-by-file inventory exported to " + url.lastPathComponent
+        } catch {
+            deepError = "Export failed: " + error.localizedDescription
+        }
+    }
+
     func nextDeepPage() async {
         guard deepRows.count == 150 else { return }
         await searchDeepFiles(text: deepQuery, advice: deepAdvice,
