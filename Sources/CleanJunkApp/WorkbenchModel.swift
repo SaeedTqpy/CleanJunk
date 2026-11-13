@@ -91,7 +91,7 @@ final class WorkbenchModel: ObservableObject {
     }
 
     func beginDeepScan(root: URL = URL(fileURLWithPath: "/")) {
-        guard !deepRunning, !trashing else { return }
+        guard deepTask == nil, !deepRunning, !trashing else { return }
         deepTask = Task { await performDeepScan(root: root) }
     }
 
