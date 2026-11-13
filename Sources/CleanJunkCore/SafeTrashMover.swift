@@ -124,7 +124,7 @@ public enum SafeTrashMover {
         let standardized = path.standardizedFileURL
         guard standardized.path.hasPrefix("/") else { throw CleanJunkError.forbiddenPath }
 
-        var descriptor = open("/", O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
+        var descriptor = open("/", O_SEARCH | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
         guard descriptor >= 0 else { throw CleanJunkError.forbiddenPath }
         for component in standardized.pathComponents.dropFirst() {
             if component.isEmpty || component == "." || component == ".." || component == "/" {
@@ -132,11 +132,17 @@ public enum SafeTrashMover {
                 throw CleanJunkError.forbiddenPath
             }
             let child = component.withCString { name in
-                openat(descriptor, name, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
+                openat(descriptor, name, O_SEARCH | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
             }
+            let traversalErrno = errno
             close(descriptor)
             guard child >= 0 else {
-                throw CleanJunkError.pathChanged
+                if traversalErrno == ELOOP || traversalErrno == ENOTDIR {
+                    throw CleanJunkError.pathChanged
+                }
+                throw NSError(domain: NSPOSIXErrorDomain, code: Int(traversalErrno),
+                              userInfo: [NSLocalizedDescriptionKey:
+                                "Cannot traverse protected directory component \(component) (errno \(traversalErrno))."])
             }
             descriptor = child
         }
