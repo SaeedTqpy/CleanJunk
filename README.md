@@ -35,7 +35,7 @@ CleanJunk inspects developer caches, build artifacts, selected workspaces, packa
 
 ## Full Mac Intelligence — new deep inventory
 
-The **Full Mac Scan** sidebar page can attempt a read-only, file-by-file inventory of the current Mac, including hidden files, application bundles, app containers and package installations. It stores file metadata in a paged **SQLite index**, supports searching by path or app ownership, shows evidence-based protection advice, and exports a complete CSV report. It also reads system installer receipts (pkgutil) and continues to support Homebrew separately.
+The app now opens on **Full Mac Scan** (scanning begins only after explicit confirmation). This sidebar page can attempt a read-only, file-by-file inventory of the current Mac, including hidden files, application bundles, app containers and package installations. It stores file metadata in a paged **SQLite index**, supports searching by path or app ownership, shows evidence-based protection advice, and exports a complete CSV report. It also reads system installer receipts (pkgutil) and continues to support Homebrew separately.
 
 **Not every macOS file is accessible.** Full Disk Access may help with protected user data, but SIP, private app containers, mounted volumes and APFS snapshots remain subject to OS restrictions. The app records inaccessible paths instead of pretending coverage is complete. This index never authorizes automatic deletion. Only the existing approved-cache cleanup path can move explicitly selected items to Trash.
 
