@@ -72,6 +72,54 @@ public enum SafeTrashMover {
         return resultURL
     }
 
+    /// Descriptor-relative, no-overwrite recovery. Never restores on another volume.
+    public static func restore(_ operation: CleanupOperation, home: URL) throws {
+        guard operation.state == .movedToTrash,
+              let trashPath = operation.trashPath else {
+            throw CleanJunkError.unsupportedOperation
+        }
+        let original = URL(fileURLWithPath: operation.sourcePath).standardizedFileURL
+        let source = URL(fileURLWithPath: trashPath).standardizedFileURL
+        let root = home.standardizedFileURL
+        let trashRoot = root.appendingPathComponent(".Trash", isDirectory: true)
+        guard ScanPolicy.isStrictDescendant(original, of: root),
+              ScanPolicy.isStrictDescendant(source, of: trashRoot) else {
+            throw CleanJunkError.forbiddenPath
+        }
+
+        let sourceFD = try openVerifiedDirectory(source.deletingLastPathComponent())
+        defer { close(sourceFD) }
+        let destinationFD = try openVerifiedDirectory(original.deletingLastPathComponent())
+        defer { close(destinationFD) }
+
+        var sourceInfo = stat()
+        var destinationInfo = stat()
+        guard fstat(sourceFD, &sourceInfo) == 0,
+              fstat(destinationFD, &destinationInfo) == 0,
+              sourceInfo.st_dev == destinationInfo.st_dev else {
+            throw CleanJunkError.unsupportedOperation
+        }
+
+        var movedInfo = stat()
+        guard source.lastPathComponent.withCString({
+            fstatat(sourceFD, $0, &movedInfo, AT_SYMLINK_NOFOLLOW)
+        }) == 0 else { throw CleanJunkError.pathChanged }
+        let kind = UInt32(movedInfo.st_mode) & UInt32(S_IFMT)
+        let actual = FileIdentity(device: UInt64(movedInfo.st_dev),
+                                  inode: UInt64(movedInfo.st_ino), fileType: kind)
+        guard actual == operation.scannedIdentity else { throw CleanJunkError.pathChanged }
+
+        let result = source.lastPathComponent.withCString { fromName in
+            original.lastPathComponent.withCString { toName in
+                renameatx_np(sourceFD, fromName, destinationFD, toName, 0x00000004)
+            }
+        }
+        guard result == 0 else {
+            if errno == EEXIST { throw CleanJunkError.alreadyExists }
+            throw NSError(domain: NSPOSIXErrorDomain, code: Int(errno))
+        }
+    }
+
     private static func openVerifiedDirectory(_ path: URL) throws -> Int32 {
         let standardized = path.standardizedFileURL
         guard standardized.path.hasPrefix("/") else { throw CleanJunkError.forbiddenPath }
