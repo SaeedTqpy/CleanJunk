@@ -15,6 +15,8 @@ final class WorkbenchModel: ObservableObject {
     @Published private(set) var deepProgress: DeepScanProgress?
     @Published private(set) var deepRows: [DeepFileRecord] = []
     @Published private(set) var deepRunning = false
+    @Published private(set) var installerReceipts: InstallerReceiptInventory?
+    @Published private(set) var inspectingReceipts = false
     @Published private(set) var deepPage = 0
     @Published var deepError: String?
     @Published private(set) var inspectingSystemStorage = false
@@ -40,6 +42,7 @@ final class WorkbenchModel: ObservableObject {
     private let systemInspector = SystemStorageInspector()
     private let deepScanner = DeepStorageScanner()
     private let deepIndex = DeepScanIndex()
+    private let receiptInspector = InstallerReceiptInspector()
     private var deepTask: Task<Void, Never>?
     private var deepQuery = ""
     private var deepAdvice: DeepCleanupAdvice?
@@ -64,6 +67,17 @@ final class WorkbenchModel: ObservableObject {
             notice = "Scan cancelled."
         } catch {
             errorMessage = error.localizedDescription
+        }
+    }
+
+    func loadInstallerReceipts() async {
+        guard !inspectingReceipts else { return }
+        inspectingReceipts = true
+        defer { inspectingReceipts = false }
+        do {
+            installerReceipts = try await receiptInspector.inspect()
+        } catch {
+            deepError = "Installer receipt inventory unavailable: " + error.localizedDescription
         }
     }
 
