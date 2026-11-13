@@ -15,6 +15,7 @@ final class WorkbenchModel: ObservableObject {
     @Published private(set) var inspectingWorkspace = false
     @Published private(set) var history: [TrashRecord] = []
     @Published private(set) var cleanupOperations: [CleanupOperation] = []
+    @Published private(set) var journalCorrupted = false
     @Published private(set) var workspace: URL?
     @Published private(set) var scanning = false
     @Published private(set) var inspectingBrew = false
@@ -130,6 +131,7 @@ final class WorkbenchModel: ObservableObject {
     func loadHistory() async {
         history = await activity.all()
         cleanupOperations = await executor.operations()
+        journalCorrupted = await executor.journalIsCorrupted()
     }
 
     func trashSelected() async {
