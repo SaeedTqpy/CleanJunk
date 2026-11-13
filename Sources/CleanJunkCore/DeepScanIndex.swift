@@ -1,4 +1,5 @@
 import Foundation
+import Darwin
 import SQLite3
 
 private let deepSQLiteTransient = unsafeBitCast(-1, to: sqlite3_destructor_type.self)
@@ -184,6 +185,57 @@ final class DeepScanDatabase {
         return records
     }
 
+    func exportCSV(to destination: URL) throws {
+        guard let database else { throw DeepScanError.missingIndex }
+        let sql = """
+            SELECT path,category,advice,owner,evidence,logical_bytes,allocated_bytes,
+                   modified_epoch,is_directory,is_link,duplicate_hardlink
+            FROM files ORDER BY path ASC
+            """
+        var statement: OpaquePointer?
+        guard sqlite3_prepare_v2(database, sql, -1, &statement, nil) == SQLITE_OK else {
+            throw error()
+        }
+        defer { sqlite3_finalize(statement) }
+
+        let fm = FileManager.default
+        guard fm.createFile(atPath: destination.path, contents: nil) else {
+            throw CocoaError(.fileWriteUnknown)
+        }
+        let output = try FileHandle(forWritingTo: destination)
+        defer { try? output.close() }
+
+        func value(_ index: Int32) -> String {
+            guard let p = sqlite3_column_text(statement, index) else { return "" }
+            return String(cString: p)
+        }
+        func escape(_ string: String) -> String {
+            "\"" + string.replacingOccurrences(of: "\"", with: "\"\"") + "\""
+        }
+        try output.write(contentsOf: Data(
+            "path,category,advice,owner,evidence,logical_bytes,allocated_bytes,modified_epoch,is_directory,is_link,is_hardlink_duplicate\n".utf8
+        ))
+        var batch = ""
+        var rows = 0
+        while true {
+            let status = sqlite3_step(statement)
+            if status == SQLITE_DONE { break }
+            guard status == SQLITE_ROW else { throw error() }
+            var fields = (0...4).map { escape(value(Int32($0))) }
+            for index in 5...10 {
+                fields.append(String(sqlite3_column_int64(statement, Int32(index))))
+            }
+            batch += fields.joined(separator: ",") + "\n"
+            rows += 1
+            if rows >= 1_000 {
+                try output.write(contentsOf: Data(batch.utf8))
+                rows = 0
+                batch = ""
+            }
+        }
+        if !batch.isEmpty { try output.write(contentsOf: Data(batch.utf8)) }
+    }
+
     private func bindText(_ statement: OpaquePointer?, _ index: Int32, _ value: String) {
         sqlite3_bind_text(statement, index, (value as NSString).utf8String, -1,
                           deepSQLiteTransient)
@@ -201,6 +253,13 @@ public actor DeepScanIndex {
     public static var defaultDatabaseURL: URL {
         FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent("Library/Application Support/CleanJunk/deep-storage-v1.sqlite")
+    }
+
+    public func exportCSV(to destination: URL) throws {
+        guard FileManager.default.fileExists(atPath: databaseURL.path) else {
+            throw DeepScanError.missingIndex
+        }
+        try DeepScanDatabase(url: databaseURL, create: false).exportCSV(to: destination)
     }
 
     public func latestSummary() throws -> DeepScanSummary? {
