@@ -14,7 +14,12 @@ public actor RemovalService {
     public func trash(_ candidate: ScanItem, workspace: URL?) throws -> TrashRecord {
         try ScanPolicy.validateRemoval(candidate, home: home, workspace: workspace)
         let url = URL(fileURLWithPath: candidate.path).standardizedFileURL
-        guard fileManager.fileExists(atPath: url.path) else { throw CleanJunkError.pathChanged }
+        guard let recordedIdentity = candidate.identity,
+              FileIdentity.capture(at: url) == recordedIdentity else {
+            throw CleanJunkError.pathChanged
+        }
+        // Identity is rechecked immediately before Finder's Trash operation.
+        // A fully race-resistant implementation still requires descriptor-relative rename.
         var destination: NSURL?
         try fileManager.trashItem(at: url, resultingItemURL: &destination)
         return TrashRecord(originalPath: url.path, trashPath: (destination as URL?)?.path,
