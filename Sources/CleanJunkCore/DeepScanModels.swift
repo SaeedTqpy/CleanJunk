@@ -128,6 +128,16 @@ public enum DeepStorageClassifier {
             inside(value, prefix)
         }
 
+        // Homebrew Intel and other third-party installations live under /usr/local.
+        // This must be classified before the protected /usr system-root rule.
+        if standardized == "/usr/local" || standardized.hasPrefix("/usr/local/") {
+            let pathComponents = standardized.split(separator: "/").map(String.init)
+            let owner = pathComponents.count > 3 && pathComponents[2] == "Cellar"
+                ? pathComponents[3] : "Third-party package"
+            return result(.installedPackage, .preserve, owner,
+                          "Third-party tool or package. Use its owning package manager or vendor installer.")
+        }
+
         // System and low-level locations override every appearance-based cache heuristic.
         for root in ["/System", "/bin", "/sbin", "/usr", "/Library",
                      "/private", "/dev", "/opt/homebrew/Cellar", "/opt/homebrew/Caskroom"] {
