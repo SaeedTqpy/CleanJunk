@@ -59,5 +59,5 @@ codesign --force --sign - "$APP"
 ARCH="$(uname -m)"
 ARCHIVE="$DEST/CleanJunk-macos26-$ARCH.zip"
 ditto -c -k --sequesterRsrc --keepParent "$APP" "$ARCHIVE"
-shasum -a 256 "$ARCHIVE" | tee "$ARCHIVE.sha256"
+(cd "$DEST" && shasum -a 256 "$(basename "$ARCHIVE")" | tee "$(basename "$ARCHIVE").sha256")
 echo "Packaged $ARCHIVE"
