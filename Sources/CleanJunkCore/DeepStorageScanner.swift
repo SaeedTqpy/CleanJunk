@@ -96,7 +96,7 @@ public actor DeepStorageScanner {
                 continue
             }
 
-            for case let entry as URL in enumerator {
+            while let entry = enumerator.nextObject() as? URL {
                 if examined % 1_000 == 0 { try Task.checkCancellation() }
                 if examined >= maxEntries || Date().timeIntervalSince(start) > maxDuration {
                     hitLimit = true
