@@ -134,6 +134,7 @@ struct WorkbenchView: View {
 struct OverviewPage: View {
     @ObservedObject var model: WorkbenchModel
     var browse: () -> Void
+    var deepScan: () -> Void
 
     private var groups: [(ArtifactCategory, Int64)] {
         ArtifactCategory.allCases.map { category in
