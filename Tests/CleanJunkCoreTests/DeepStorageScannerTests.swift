@@ -124,7 +124,7 @@ final class DeepStorageScannerTests: XCTestCase {
         let export = f.home.deletingLastPathComponent().appendingPathComponent("inventory.csv")
         try await index.exportCSV(to: export)
         let contents = try String(contentsOf: export, encoding: .utf8)
-        XCTAssertTrue(contents.contains("\"customer,report.txt\""))
+        XCTAssertTrue(contents.contains("\"" + f.home.appendingPathComponent("Documents/customer,report.txt").path + "\""))
         XCTAssertTrue(contents.contains("allocated_bytes"))
     }
 
