@@ -16,6 +16,7 @@ private enum Destination: String, CaseIterable, Hashable, Identifiable {
         switch self {
         case .overview: return "square.grid.2x2.fill"
         case .explorer: return "internaldrive.fill"
+        case .deep: return "square.stack.3d.up.fill"
         case .system: return "externaldrive.fill"
         case .developers: return "curlybraces.square.fill"
         case .homebrew: return "shippingbox.fill"
