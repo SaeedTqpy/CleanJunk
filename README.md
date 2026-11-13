@@ -4,7 +4,7 @@
 
 CleanJunk inspects developer caches, build artifacts, selected workspaces, package metadata, SDKs and local storage diagnostics. It is written in **SwiftUI + AppKit**, with native **Liquid Glass** components on macOS 26.
 
-**Current status: 0.9.0 release-candidate source, not a verified public release.** The current branch has not yet completed its final macOS build, physical-device validation, or Apple notarization. Use disposable test data.
+**Current status: 0.10.0 full-disk intelligence development candidate, not a verified public release.** The current branch has not yet completed its final macOS build, physical-device validation, or Apple notarization. Use disposable test data.
 
 **Documentation:** English (this page) · [فارسی](docs/README.fa.md)
 
