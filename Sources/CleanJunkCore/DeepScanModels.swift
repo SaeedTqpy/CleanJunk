@@ -90,7 +90,7 @@ public struct DeepScanSummary: Codable, Sendable {
     public let limitsReached: Bool
 
     /// A full system scan is never claimed if the OS denied access to paths.
-    public var coverageComplete: Bool { !limitsReached && inaccessibleEntries == 0 }
+    public var coverageComplete: Bool { !limitsReached && inaccessibleEntries == 0 && warnings.isEmpty }
 }
 
 public enum DeepScanError: LocalizedError, Sendable {
