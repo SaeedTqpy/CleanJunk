@@ -5,6 +5,7 @@ import SwiftUI
 private enum Destination: String, CaseIterable, Hashable, Identifiable {
     case overview = "Overview"
     case explorer = "Space Explorer"
+    case deep = "Full Mac Scan"
     case system = "System Data"
     case developers = "Developer Caches"
     case homebrew = "Packages"
@@ -15,6 +16,7 @@ private enum Destination: String, CaseIterable, Hashable, Identifiable {
         switch self {
         case .overview: return "square.grid.2x2.fill"
         case .explorer: return "internaldrive.fill"
+        case .deep: return "square.stack.3d.up.fill"
         case .system: return "externaldrive.fill"
         case .developers: return "curlybraces.square.fill"
         case .homebrew: return "shippingbox.fill"
@@ -25,7 +27,7 @@ private enum Destination: String, CaseIterable, Hashable, Identifiable {
 
 struct WorkbenchView: View {
     @StateObject private var model = WorkbenchModel()
-    @State private var selection: Destination? = .overview
+    @State private var selection: Destination? = .deep
     @State private var showConfirmation = false
 
     var body: some View {
@@ -40,7 +42,7 @@ struct WorkbenchView: View {
                     }
                 }
                 Section("STATUS") {
-                    Label(model.scanning ? "Scanning disk…" : "Local analysis", systemImage: "circle.dotted")
+                    Label(model.deepRunning ? "Indexing full Mac…" : (model.scanning ? "Scanning caches…" : "Local analysis"), systemImage: "circle.dotted")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                     Label("Privacy by design", systemImage: "lock.shield")
@@ -67,8 +69,9 @@ struct WorkbenchView: View {
         } detail: {
             Group {
                 switch selection ?? .overview {
-                case .overview: OverviewPage(model: model, browse: { selection = .explorer })
+                case .overview: OverviewPage(model: model, browse: { selection = .explorer }, deepScan: { selection = .deep })
                 case .explorer: ArtifactPage(model: model, filter: nil)
+                case .deep: DeepStoragePage(model: model, reviewCaches: { selection = .explorer })
                 case .system: SystemDataPage(model: model)
                 case .developers: DeveloperPage(model: model)
                 case .homebrew: HomebrewPage(model: model)
@@ -131,6 +134,7 @@ struct WorkbenchView: View {
 struct OverviewPage: View {
     @ObservedObject var model: WorkbenchModel
     var browse: () -> Void
+    var deepScan: () -> Void
 
     private var groups: [(ArtifactCategory, Int64)] {
         ArtifactCategory.allCases.map { category in
@@ -179,6 +183,10 @@ struct OverviewPage: View {
                         }
                         .buttonStyle(.glassProminent)
                         .disabled(model.scanning)
+                        Button(action: deepScan) {
+                            Label("Full Mac Scan", systemImage: "internaldrive")
+                        }
+                        .buttonStyle(.glass)
                         Button(action: browse) {
                             Label("Explore findings", systemImage: "arrow.up.right")
                                 .padding(.horizontal, 8)

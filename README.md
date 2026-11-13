@@ -4,7 +4,7 @@
 
 CleanJunk inspects developer caches, build artifacts, selected workspaces, package metadata, SDKs and local storage diagnostics. It is written in **SwiftUI + AppKit**, with native **Liquid Glass** components on macOS 26.
 
-**Current status: 0.9.0 release-candidate source, not a verified public release.** The current branch has not yet completed its final macOS build, physical-device validation, or Apple notarization. Use disposable test data.
+**Current status: 0.10.0 full-disk intelligence development candidate, not a verified public release.** The current branch has not yet completed its final macOS build, physical-device validation, or Apple notarization. Use disposable test data.
 
 **Documentation:** English (this page) · [فارسی](docs/README.fa.md)
 
@@ -33,10 +33,19 @@ CleanJunk inspects developer caches, build artifacts, selected workspaces, packa
 - [Troubleshooting](#troubleshooting)
 - [Contributing and license](#contributing-and-license)
 
+## Full Mac Intelligence — new deep inventory
+
+The app now opens on **Full Mac Scan** (scanning begins only after explicit confirmation). This sidebar page can attempt a read-only, file-by-file inventory of the current Mac, including hidden files, application bundles, app containers and package installations. It stores file metadata in a paged **SQLite index**, supports searching by path or app ownership, shows evidence-based protection advice, and exports a complete CSV report. It also reads system installer receipts (pkgutil) and continues to support Homebrew separately.
+
+**Not every macOS file is accessible.** Full Disk Access may help with protected user data, but SIP, private app containers, mounted volumes and APFS snapshots remain subject to OS restrictions. The app records inaccessible paths instead of pretending coverage is complete. This index never authorizes automatic deletion. Only the existing approved-cache cleanup path can move explicitly selected items to Trash.
+
+[Read the complete deep storage design, privacy model and limits](docs/DEEP_STORAGE.md).
+
 ## Features
 
 | Feature | Implemented behavior | Important limit |
 |---|---|---|
+| Full Mac Intelligence | Comprehensive read-only file-by-file metadata indexing, evidence-based risk classification, SQLite search, CSV export, pkgutil receipts | Protected and inaccessible locations are reported; no automatic file deletion |
 | Overview | Scan summary, measured footprints, risk classification, incomplete-scan warnings | Does not report all macOS System Data |
 | Space Explorer | Browse, filter and search cache artifacts, reveal in Finder, select exact items | Partial and protected items cannot be removed |
 | Developer workspace | User-selected folder; detects generated directories such as node_modules, .next, .venv, target and .gradle | Never considers project source code a cleanup artifact |

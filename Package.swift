@@ -11,7 +11,8 @@ let package = Package(
     targets: [
         .target(
             name: "CleanJunkCore",
-            path: "Sources/CleanJunkCore"
+            path: "Sources/CleanJunkCore",
+            linkerSettings: [.linkedLibrary("sqlite3")]
         ),
         .executableTarget(
             name: "CleanJunkApp",
