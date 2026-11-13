@@ -38,21 +38,25 @@ final class DeepStorageScannerTests: XCTestCase {
         let persisted = try await index.latestSummary()
         XCTAssertEqual(persisted?.filesIndexed, report.filesIndexed)
 
-        let cache = try XCTUnwrap((try await index.search("blob")).first)
+        let cacheRows = try await index.search("blob")
+        let cache = try XCTUnwrap(cacheRows.first)
         XCTAssertEqual(cache.category, .developerCache)
         XCTAssertEqual(cache.advice, .rebuildable)
         XCTAssertFalse(cache.advice.isDeletionAuthorized)
 
-        let database = try XCTUnwrap((try await index.search("customer.sqlite")).first)
+        let databaseRows = try await index.search("customer.sqlite")
+        let database = try XCTUnwrap(databaseRows.first)
         XCTAssertEqual(database.advice, .preserve)
         XCTAssertEqual(database.category, .applicationData)
 
-        let sandboxCache = try XCTUnwrap((try await index.search("scratch")).first)
+        let sandboxRows = try await index.search("scratch")
+        let sandboxCache = try XCTUnwrap(sandboxRows.first)
         XCTAssertEqual(sandboxCache.owner, "com.example.mail")
         XCTAssertEqual(sandboxCache.advice, .investigate)
         XCTAssertEqual(sandboxCache.category, .applicationCache)
 
-        let dependencies = try XCTUnwrap((try await index.search("main.js")).first)
+        let dependencyRows = try await index.search("main.js")
+        let dependencies = try XCTUnwrap(dependencyRows.first)
         XCTAssertEqual(dependencies.category, .installedPackage)
         XCTAssertEqual(dependencies.advice, .investigate)
     }
