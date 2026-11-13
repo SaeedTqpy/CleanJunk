@@ -104,6 +104,7 @@ public enum DeepScanError: LocalizedError, Sendable {
         case .invalidRoot: return "Choose an existing directory. A protected, unavailable or symbolic-link root cannot be scanned."
         case .sqlite(let message): return "Deep inventory database error: " + message
         case .missingIndex: return "No completed deep-scan index exists. Run a scan first."
+        case .insufficientSpace: return "Not enough free disk space to safely build the metadata index. Free space first; the previous completed index was preserved."
         }
     }
 }
