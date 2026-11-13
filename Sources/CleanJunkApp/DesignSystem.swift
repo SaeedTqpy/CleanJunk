@@ -15,6 +15,8 @@ enum CJStyle {
         case .developerLogs: return amber
         case .workspace: return Color.cyan
         case .docker: return Color.gray
+        case .simulator: return Color.indigo
+        case .sdk: return Color.teal
         }
     }
 }
