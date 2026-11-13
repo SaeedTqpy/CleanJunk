@@ -7,6 +7,8 @@ public enum ArtifactCategory: String, CaseIterable, Codable, Sendable, Identifia
     case developerLogs = "Developer logs"
     case workspace = "Project artifacts"
     case docker = "Docker data"
+    case simulator = "Simulator data"
+    case sdk = "SDKs & toolchains"
 
     public var id: String { rawValue }
     public var symbol: String {
@@ -17,6 +19,8 @@ public enum ArtifactCategory: String, CaseIterable, Codable, Sendable, Identifia
         case .developerLogs: return "doc.text.magnifyingglass"
         case .workspace: return "chevron.left.forwardslash.chevron.right"
         case .docker: return "externaldrive.fill"
+        case .simulator: return "iphone.gen3"
+        case .sdk: return "wrench.and.screwdriver.fill"
         }
     }
 }
