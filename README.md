@@ -1,61 +1,222 @@
 # CleanJunk
 
-**CleanJunk is a native macOS 26+ developer storage intelligence app.** SwiftUI + AppKit, real system Liquid Glass controls, a conservative filesystem scanner, Homebrew inventory, and explicit per-item Trash review.
+**Native macOS storage intelligence for developers. Understand what occupies your disk before removing it.**
 
-> **Project status:** v0.9.0 release-candidate source. Build + device QA, notarization and signing have NOT been validated for this new branch. Do not publish until docs/RELEASE_CHECKLIST.md is satisfied.
+CleanJunk inspects developer caches, build artifacts, selected workspaces, package metadata, SDKs and local storage diagnostics. It is written in **SwiftUI + AppKit**, with native **Liquid Glass** components on macOS 26.
 
-## Included
+**Current status: 0.9.0 release-candidate source, not a verified public release.** The current branch has not yet completed its final macOS build, physical-device validation, or Apple notarization. Use disposable test data.
 
-- **Overview**: measured footprints by category, risk controls, scan completeness information.
-- **Space Explorer**: real filesystem inspection of selected cache roots, per-artifact estimated allocated size, filters, Finder reveal and explicit multi-select.
-- **Developer workspaces**: opt-in folder picker; detects generated directories (node_modules, .venv, .next, .gradle, target etc.) without touching source files. A read-only project inventory discovers Node.js, Python, Rust and Go manifests. Node.js direct dependency declarations and npm lockfile entry counts are parsed; Python/Rust/Go dependency resolution is **not yet implemented**. On-demand JS/TS import evidence is supported and explicitly distinguishes observed / not observed / unknown; this is NOT proof that a dependency can be uninstalled.
-- **Homebrew inventory**: reads brew info --json=v2 --installed, reports installed-on-request intent, dependency counts, and displays brew autoremove --dry-run results. **Never calls brew uninstall or autoremove without --dry-run.**
-- **Safe cleanup**: explicit review, complete scan + device/inode verification, directory descriptors opened without following symlinks, same-volume no-overwrite atomic rename into the user's Trash, durable write-ahead journal, and guarded restoration without replacing originals. Protected Docker virtual disks, simulator data, SDKs and Xcode archives remain inspect-only. A hostile concurrent writer can still race the final identity check; no unattended cleanup.
-- **System Data diagnostics**: read-only filesystem capacity, local Time Machine snapshot list, and explicit caveats: neither snapshot count nor listed cache sizes equal the macOS System Data category.
-- **Audit trail**: versioned local write-ahead operations journal (atomic writes) and history under ~/Library/Application Support/CleanJunk. Interrupted operations are shown as unresolved, not success.
-- **Native design**: NavigationSplitView sidebar, SwiftUI Table, GlassEffectContainer, glass buttons, SF Symbols, original generated Retina app icon, Light/Dark Mode and native accessibility-aware materials.
+**Documentation:** English (this page) · [فارسی](docs/README.fa.md)
 
-## Build (no local Xcode required)
+---
 
-**GitHub Actions is manual-only.** Pushes and pull requests do not run CI. To validate a batch of changes, open Actions → **Manual macOS 26 Build and Tests** → Run workflow. Leave `publish_preview` **off** for tests and packaging only; turn it on only when a downloadable ad-hoc-signed ZIP and SHA-256 file are intentionally required. Preview releases avoid the exhausted Actions artifact quota, but publishing still uses macOS runner minutes. No workflow has been run for changes added after the initial tested foundation.
+## Interface gallery
 
-For rapid local checks that consume **zero GitHub Actions minutes**, run:
+| Overview | Space Explorer |
+|:--:|:--:|
+| ![Concept design for CleanJunk overview](docs/previews/overview.svg) | ![Concept design for CleanJunk space explorer](docs/previews/explorer.svg) |
+| Packages | System Data |
+| ![Concept design for CleanJunk package inventory](docs/previews/packages.svg) | ![Concept design for CleanJunk system data diagnostics](docs/previews/system-data.svg) |
 
-    bash scripts/check-core.sh
+**Image authenticity:** These four images are **illustrative UI concepts, not actual screenshots from a running app**. Each image is labeled. A real macOS screenshot requires running the app and capturing its window. The repository includes a [real screenshot capture script](scripts/capture-screenshots.sh) and [instructions](docs/screenshots/README.md); actual images will be used only after capture and privacy review.
 
-Locally with the Xcode 26 toolchain on a macOS 26 machine:
+## Contents
 
-    bash scripts/check-core.sh --test
-    swift test
-    bash scripts/package-app.sh release
-    open dist/CleanJunk.app
+- [Features](#features)
+- [Requirements](#requirements)
+- [Install without an Apple Developer account](#install-without-an-apple-developer-account)
+- [Build locally](#build-locally)
+- [How to use](#how-to-use)
+- [Cleanup safety and recovery](#cleanup-safety-and-recovery)
+- [Project structure](#project-structure)
+- [Tests and CI](#tests-and-ci)
+- [Troubleshooting](#troubleshooting)
+- [Contributing and license](#contributing-and-license)
 
-For public distribution, configure the six Apple signing secrets documented in docs/RELEASE_CHECKLIST.md, then run the separate **Manual Developer ID Release** workflow. It creates a private draft release only after successful Developer ID signing, Apple notarization, and stapling. An Apple Developer Program membership is required for the certificate. There is no unattended release.
+## Features
 
-Requires macOS 26+. The ad-hoc signature is for local testing only; it is **not** Developer ID signing or Apple notarization. Gatekeeper may block downloaded test artifacts. Public release requires Developer ID and notarization.
+| Feature | Implemented behavior | Important limit |
+|---|---|---|
+| Overview | Scan summary, measured footprints, risk classification, incomplete-scan warnings | Does not report all macOS System Data |
+| Space Explorer | Browse, filter and search cache artifacts, reveal in Finder, select exact items | Partial and protected items cannot be removed |
+| Developer workspace | User-selected folder; detects generated directories such as node_modules, .next, .venv, target and .gradle | Never considers project source code a cleanup artifact |
+| Dependency manifests | Finds Node.js, Python, Rust and Go projects; analyzes package.json and npm lockfile metadata | Full Python/Rust/Go dependency resolution is not available |
+| Import evidence | Optional bounded scan of JS/TS import and require references | Missing static references do NOT prove a package is unused |
+| Homebrew | Local installed formula/cask inventory, reverse dependencies and autoremove dry run | Read-only: no brew uninstall is executed |
+| SDK / simulator | Shows select Android SDK, iOS and Android emulator footprints | Protected and inspection-only |
+| Docker | Shows detected Docker VM disk file sizes | Never deletes Docker.raw directly |
+| System Data | Volume capacity and local Time Machine snapshot identifiers | Read-only diagnostics, not System Data cleanup |
+| Cleanup | Manual selection + confirmation, audited move into user Trash | No permanent delete, unattended sweep or cross-volume copy |
+| History and Restore | Durable operation journal, unresolved-operation detection, guarded Restore | Restore may be rejected for missing/changed files and occupied original paths |
 
-## Security policy
+### What it does not do
 
-1. **Read-only scan first**. A scan never deletes anything.
-2. Every move requires explicit selection and confirmation, is journaled before mutation, and uses verified directory descriptors and renameatx_np(RENAME_EXCL) to prohibit destination overwrites. This narrows but cannot eliminate source-entry races.
-3. Moves are directed into the current user's Trash, never permanently deleted. The app's own guarded Restore is supported; Finder Put Back metadata might not be available. Emptying Trash is out of scope, and no disk space is promised as reclaimed until then.
-4. Docker virtual disks, Simulator device data, SDK installations, Xcode archives and system folders never enter the deletion path.
-5. Homebrew is informational only. It is unsafe to call an installed package unused solely because it is old or has no Homebrew dependents: tools outside Homebrew may still need it.
-6. APFS clone sharing, hard links and sparse files make displayed allocated-size totals **estimates**. Incomplete scans are marked, and the scan covers known user paths rather than pretending to measure the whole macOS System Data category.
-7. No blanket privileged execution, filesystem access outside user-approved scope, telemetry or backend.
+CleanJunk is not a generic one-click junk remover, a package uninstaller, an APFS snapshot deletion tool, or a promise that the displayed footprint is reclaimable. APFS clones, shared file blocks, hard links, backups and purgeable data can all affect actual free space.
 
-**Known limitations before production release:** persistent history uses atomic JSON rather than SQLite, external-volume cleanup is intentionally refused, no exhaustive dependency graph or automated uninstall, static import searches can miss dynamic usage, scanner performance/permission QA remains outstanding, APFS clone-aware size reporting is not implemented, accessibility and physical Mac tests remain outstanding, Apple Developer ID and notarization are not yet configured. See docs/SECURITY_MODEL.md and docs/RELEASE_CHECKLIST.md.
+## Requirements
 
-## Source map
+| Item | Requirement |
+|---|---|
+| macOS | **26 or newer** — required by native Liquid Glass APIs |
+| Architecture | The GitHub preview workflow targets **Apple Silicon / arm64** |
+| Local developer tools | **Xcode 26 and Swift 6.2** with macOS 26 SDK |
+| Paid Apple Developer account | **Not necessary** for local or GitHub-built ad-hoc developer previews |
+| Notarized release | Requires Developer ID Application certificate and Apple notarization |
+| GitHub | The repository is currently **private**; users need owner-granted repository access |
 
-- Sources/CleanJunkCore — file scan policies, scanner, Homebrew inspector and removal engine
-- Sources/CleanJunkApp — native macOS interface and app state
-- Tests/CleanJunkCoreTests — safety and scanner regression tests
-- scripts/package-app.sh and scripts/generate-icon.swift — macOS app/ZIP + original icns packaging
-- .github/workflows/macos.yml — manual-only macOS 26 build/test workflow
-- .github/workflows/release.yml — manual-only Developer ID/notarytool signing, verification and draft release
-- docs/ — privacy, security threat model and mandatory release QA gates
+The project uses native SwiftUI, AppKit and Foundation rather than Electron or a web runtime. There is no required backend account or analytics server.
 
-## Safety notes for contributors
+## Install without an Apple Developer account
 
-Do not add direct deletion of Docker.raw, virtual machine volumes, databases, Homebrew Cellar, Xcode archives, system caches or arbitrary user directories. Adding a cleanup adapter requires a documented classification policy, proof of recoverability and fixture-based tests.
+There are **two supported developer-build routes**. An ad-hoc signature is suitable for personal testing, but it is not a notarized public distribution signature. macOS Gatekeeper can block downloads until the user explicitly reviews and approves them.
+
+### A. Build through GitHub Actions — no local Xcode
+
+**This workflow is manual-only. Pushes and Pull Requests use zero GitHub Actions runner minutes.**
+
+1. Open the [repository Actions page](https://github.com/SaeedTqpy/CleanJunk/actions).
+2. Select the manual macOS 26 build workflow.
+3. Choose **Run workflow**, select a reviewed branch (currently **feat/dependency-intelligence-and-scan-v2**) and set **publish_preview=true** if you actually need an installable ZIP.
+4. The **single** macOS job runs Swift tests, builds the app, creates a Retina icon, packages an ad-hoc-signed ZIP and verifies its checksum. If the build or tests fail, no preview is published.
+5. Open [Releases](https://github.com/SaeedTqpy/CleanJunk/releases), find the prerelease matching the built commit, and download the ZIP plus its SHA-256 file. **A tag without assets is not an app download.**
+6. Verify the files in Terminal:
+
+~~~bash
+cd ~/Downloads
+shasum -a 256 -c CleanJunk-macos26-arm64.zip.sha256
+~~~
+
+7. Extract the ZIP, move **CleanJunk.app** to **Applications**, and try to open it.
+
+**Gatekeeper:** Ad-hoc builds are not verified by Apple's Developer ID/notarization process. Only if you trust and have verified the specific build, Apple explains how to grant an individual exception at **System Settings → Privacy & Security → Open Anyway**, after an attempted launch. **Do not disable Gatekeeper globally or follow scripts that remove all quarantine attributes.** Read [Apple's official security guidance](https://support.apple.com/en-us/102445).
+
+**No Developer account is needed for this path.** A properly notarized, friction-free external distribution is a different release track and cannot be promised without an Apple Developer membership.
+
+### B. Compile from source on a Mac
+
+With Xcode 26 installed and macOS 26 running:
+
+~~~bash
+git clone https://github.com/SaeedTqpy/CleanJunk.git
+cd CleanJunk
+git switch feat/dependency-intelligence-and-scan-v2
+
+swift test --parallel
+bash scripts/package-app.sh release
+open dist/CleanJunk.app
+~~~
+
+The package script writes the application, ZIP and portable SHA-256 file to **dist/**. The generated icon is original and created from source in **scripts/generate-icon.swift**.
+
+For a lightweight local core type-check (no CI usage):
+
+~~~bash
+bash scripts/check-core.sh
+~~~
+
+## How to use
+
+1. **Overview:** On launch, review the read-only scan summary, warnings and measured disk footprints.
+2. **Space Explorer:** Search or filter artifacts, inspect the paths, and reveal uncertain items in Finder. Protected items and incomplete scan measurements must not be cleaned.
+3. **Developer Caches:** Select a specific workspace folder. Review generated directories and discovered Node/Python/Rust/Go projects. For Node projects, the **Analyze imports** action shows static import evidence; it never authorizes an uninstall.
+4. **Packages:** Review local Homebrew inventory and its **autoremove dry-run**. No installed formula is removed here.
+5. **System Data:** Inspect capacity and Time Machine snapshot identifiers. This is diagnostic and read-only.
+6. **Review cleanup:** Approve the exact selected artifacts. They are moved to your user Trash, not erased.
+7. **Activity:** Review the durable journal, restore a matching Trash item when possible, and investigate unfinished operations instead of assuming success.
+
+**Test with disposable caches first.** Even a rebuildable cache can be expensive to regenerate or essential to current work when offline.
+
+## Cleanup safety and recovery
+
+- **No automatic cleanup:** Every mutation is explicit, with user confirmation.
+- **Allowed roots only:** Candidates must come from known scan policies or a selected development workspace.
+- **Protected data:** Docker VM disks, SDK and simulator installations, Xcode archives and Time Machine snapshots cannot be directly removed.
+- **Fail-closed scanning:** Missing file identities, changed inodes, symbolic links and incomplete scans stop cleanup.
+- **No overwrite:** On supported local volumes, directory-descriptor-relative same-volume operations refuse existing destinations.
+- **Write-ahead journal:** The operation is recorded before moving the file. Interrupted or ambiguous moves remain unresolved for investigation.
+- **Restore:** Matching files can be restored from Trash only when the original location is available and the recorded identity still matches. Finder's native **Put Back** metadata may not exist for these moves.
+- **Space is an estimate:** Trash must be emptied separately to reclaim space. APFS shared allocation means reported bytes cannot guarantee savings.
+- **Residual race:** A hostile process able to modify the source directory can race the final inode check because the OS does not offer an atomic compare-identity-and-rename primitive. CleanJunk is for manually approved cleanup of trusted local workspaces, not a hostile multiuser environment.
+
+Read the full [security model](docs/SECURITY_MODEL.md) and [mandatory release checklist](docs/RELEASE_CHECKLIST.md).
+
+## Project structure
+
+~~~text
+CleanJunk/
+├── Sources/CleanJunkApp/          Native macOS pages and application state
+├── Sources/CleanJunkCore/         Scanners, dependency evidence, safety policies, Trash and journal
+├── Tests/CleanJunkCoreTests/      Regression and safety tests
+├── scripts/
+│   ├── check-core.sh             Local type-check
+│   ├── generate-icon.swift       Retina icon generator
+│   ├── package-app.sh            .app, .icns, ZIP, SHA-256
+│   └── capture-screenshots.sh    Real window capture, user controlled
+├── docs/
+│   ├── previews/                 Labeled design concepts (SVG)
+│   ├── screenshots/              Real screenshot instructions and future PNG captures
+│   ├── PRIVACY.md
+│   ├── SECURITY_MODEL.md
+│   └── RELEASE_CHECKLIST.md
+└── .github/workflows/
+    ├── macos.yml                 Manual-only build + optional developer preview
+    └── release.yml               Manual-only Apple signing/notarization draft-release track
+~~~
+
+Architecture is local-first. The GUI depends on a separate Swift package core. Package manager inspection uses bounded subprocess execution and explicit argument arrays, without running shell strings from project metadata.
+
+## Tests and CI
+
+With the supported macOS toolchain:
+
+~~~bash
+swift test --parallel
+bash scripts/check-core.sh
+bash scripts/package-app.sh release
+(cd dist && shasum -a 256 -c *.sha256)
+codesign --verify --strict --verbose=2 dist/CleanJunk.app
+plutil -lint dist/CleanJunk.app/Contents/Info.plist
+~~~
+
+**No automatic workflow runs.** For consolidated changes, run the manual macOS validation once. The separately configured **Manual Developer ID Release** workflow requires an Apple Developer Program account, signing secrets and notarization; it is **not** part of the no-account preview route.
+
+Compilation is not a substitute for physical Mac testing, VoiceOver review or destructive-operation regression testing.
+
+## Screenshots
+
+The image gallery at the top is **concept artwork**, not genuine screenshots. To capture actual app windows without uploading anything:
+
+~~~bash
+# Run CleanJunk.app, navigate to a page and follow the prompts:
+bash scripts/capture-screenshots.sh
+~~~
+
+This captures **overview.png**, **space-explorer.png**, **packages.png** and **system-data.png** in **docs/screenshots/**. The script is interactive and asks you to click the real app window each time. Inspect the PNGs to ensure private usernames, project paths and package lists are not disclosed before sharing.
+
+See [the screenshot privacy and capture guide](docs/screenshots/README.md). There are **no verified real screenshots in this branch yet**; previews will be replaced when images from the running macOS app are available.
+
+## Troubleshooting
+
+| Symptom | Resolution |
+|---|---|
+| A preview ZIP is missing | A test-only manual run does not upload releases; use publish_preview=true when validation is ready |
+| Cannot access GitHub repo | It is private. Ask the owner to grant access |
+| App blocked by Gatekeeper | Verify SHA-256 and provenance; consult the Apple guidance above; do not disable platform-wide security |
+| Swift/macOS SDK not found | Install Xcode 26 or use the manual GitHub workflow |
+| Homebrew not found | Inspector expects /opt/homebrew/bin/brew or /usr/local/bin/brew |
+| Scan measurements are partial | Review permission errors or scan limits; incomplete results are not eligible for removal |
+| A package shows no imports | This does **not** mean it is unused; scripts/plugins/dynamic loading may reference it |
+| Restore refused | Trash file may have changed, original path may be occupied, or the volume is unsupported; inspect Finder and Activity |
+| No screenshots in README | The checked-in gallery is clearly marked concept-only; capture real windows with the included script |
+
+When filing bugs, attach a reproducible procedure and macOS/app version, but **redact personal file paths and secrets**.
+
+## Contributing and license
+
+Read [CONTRIBUTING.md](CONTRIBUTING.md), [SECURITY.md](SECURITY.md) and [PRIVACY.md](docs/PRIVACY.md). The repository owner reviews changes to any destructive behavior, privacy-sensitive scanning or package adapter.
+
+**License notice:** This repository **does not currently grant an open-source license**. Access to its source does not automatically authorize redistribution or derivative works. An explicit LICENSE file should be added by the owner before public open-source use. The repository is currently private.
+
+---
+
+**CleanJunk should explain a cleanup decision, not delete developer data on a guess.**
