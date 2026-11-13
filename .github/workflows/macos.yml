@@ -1,7 +1,10 @@
 name: Manual macOS 26 Build, Tests and Optional Preview
 
-# Zero runner minutes on ordinary commits and pull requests.
+# One-off release-build branch is the ONLY push trigger. Ordinary commits and pull requests never run CI.
 on:
+  push:
+    branches:
+      - ci/release-build-once-20261113
   workflow_dispatch:
     inputs:
       publish_preview:
@@ -43,7 +46,7 @@ jobs:
           codesign --verify --strict --verbose=2 dist/CleanJunk.app
           (cd dist && shasum -a 256 -c *.sha256)
       - name: Publish test-only build (explicit opt in)
-        if: ${{ inputs.publish_preview == true }}
+        if: ${{ github.event_name == 'push' || inputs.publish_preview == true }}
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
