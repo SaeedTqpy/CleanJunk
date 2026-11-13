@@ -2,6 +2,8 @@
 
 **Developer-aware disk inspection and carefully controlled cleanup for macOS.**
 
+> **New — v0.10 Full Mac Intelligence preview:** The app can now index every accessible file and directory, classify app data and package caches, track protected locations, and search the metadata SQLite index. It opens on Full Mac Scan, but scanning starts only with your consent. Download the [verified ad-hoc macOS build](https://github.com/SaeedTqpy/CleanJunk/releases/tag/preview-868af698eaca) or review the [complete v0.10 source and documentation](https://github.com/SaeedTqpy/CleanJunk/blob/feat/full-disk-intelligence-v1/README.md). This preview is not notarized and macOS protection prevents access to some files.
+
 CleanJunk is a native Mac utility built with **SwiftUI + AppKit** and macOS 26 **Liquid Glass** APIs. It helps developers discover storage used by caches, generated project directories and installed Homebrew packages—without pretending that “old” automatically means “safe to delete.”
 
 > **Repository status:** Main contains the earlier developer-preview foundation. The expanded **0.9.0 release candidate** is developed in [Pull Request #6](https://github.com/SaeedTqpy/CleanJunk/pull/6) and has **not** passed final macOS validation or been published as a notarized release. **Use test data.** For the detailed documentation and new features, read the [0.9.0 developer guide](https://github.com/SaeedTqpy/CleanJunk/blob/feat/dependency-intelligence-and-scan-v2/README.md). [راهنمای فارسی](https://github.com/SaeedTqpy/CleanJunk/blob/feat/dependency-intelligence-and-scan-v2/docs/README.fa.md)
