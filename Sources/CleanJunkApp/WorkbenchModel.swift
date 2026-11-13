@@ -8,6 +8,8 @@ final class WorkbenchModel: ObservableObject {
     @Published private(set) var snapshot = ScanSnapshot(items: [], skippedPaths: [])
     @Published private(set) var brew: BrewReport?
     @Published private(set) var workspaceReport: WorkspaceDependencyReport?
+    @Published private(set) var systemStorage: SystemStorageReport?
+    @Published private(set) var inspectingSystemStorage = false
     @Published private(set) var inspectingWorkspace = false
     @Published private(set) var history: [TrashRecord] = []
     @Published private(set) var workspace: URL?
@@ -24,6 +26,7 @@ final class WorkbenchModel: ObservableObject {
     private let activity = ActivityLog()
     private let inspector = HomebrewInspector()
     private let workspaceInspector = WorkspaceDependencyInspector()
+    private let systemInspector = SystemStorageInspector()
 
     var selectedEligible: [ScanItem] {
         snapshot.items.filter { selectedItemPaths.contains($0.id) && $0.isTrashEligible }
@@ -56,6 +59,17 @@ final class WorkbenchModel: ObservableObject {
             brew = try await inspector.inspect()
         } catch {
             brewError = error.localizedDescription
+        }
+    }
+
+    func inspectSystemStorage() async {
+        guard !inspectingSystemStorage else { return }
+        inspectingSystemStorage = true
+        defer { inspectingSystemStorage = false }
+        do {
+            systemStorage = try await systemInspector.inspect()
+        } catch {
+            errorMessage = error.localizedDescription
         }
     }
 
