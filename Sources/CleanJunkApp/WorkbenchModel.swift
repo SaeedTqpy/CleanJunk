@@ -12,6 +12,7 @@ final class WorkbenchModel: ObservableObject {
     @Published private(set) var inspectingSystemStorage = false
     @Published private(set) var inspectingWorkspace = false
     @Published private(set) var history: [TrashRecord] = []
+    @Published private(set) var cleanupOperations: [CleanupOperation] = []
     @Published private(set) var workspace: URL?
     @Published private(set) var scanning = false
     @Published private(set) var inspectingBrew = false
@@ -22,7 +23,7 @@ final class WorkbenchModel: ObservableObject {
     @Published var notice: String?
 
     private let scanner = StorageScanner()
-    private let removal = RemovalService()
+    private let executor = CleanupExecutor()
     private let activity = ActivityLog()
     private let inspector = HomebrewInspector()
     private let workspaceInspector = WorkspaceDependencyInspector()
@@ -107,6 +108,7 @@ final class WorkbenchModel: ObservableObject {
 
     func loadHistory() async {
         history = await activity.all()
+        cleanupOperations = await executor.operations()
     }
 
     func trashSelected() async {
@@ -120,10 +122,11 @@ final class WorkbenchModel: ObservableObject {
         var failures: [String] = []
         for item in targets {
             do {
-                let receipt = try await removal.trash(item, workspace: workspace)
+                let result = try await executor.trash(item, workspace: workspace)
                 moved += 1
+                if let warning = result.auditWarning { failures.append(warning) }
                 do {
-                    try await activity.append(receipt)
+                    try await activity.append(result.record)
                 } catch {
                     failures.append("Moved \(item.name), but history could not be saved: \(error.localizedDescription)")
                 }
