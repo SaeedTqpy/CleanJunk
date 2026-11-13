@@ -47,13 +47,15 @@ public struct ScanItem: Codable, Hashable, Identifiable, Sendable {
     public let rationale: String
     public let sizeBytes: Int64
     public let isSizeComplete: Bool
+    public let identity: FileIdentity?
 
     public var id: String { path }
     public var name: String { URL(fileURLWithPath: path).lastPathComponent }
-    public var isTrashEligible: Bool { risk != .protected }
+    public var isTrashEligible: Bool { risk != .protected && isSizeComplete && identity != nil }
 
     public init(path: String, scopeRootPath: String, category: ArtifactCategory, risk: RiskLevel,
-                rationale: String, sizeBytes: Int64, isSizeComplete: Bool) {
+                rationale: String, sizeBytes: Int64, isSizeComplete: Bool,
+                identity: FileIdentity? = nil) {
         self.path = path
         self.scopeRootPath = scopeRootPath
         self.category = category
@@ -61,6 +63,7 @@ public struct ScanItem: Codable, Hashable, Identifiable, Sendable {
         self.rationale = rationale
         self.sizeBytes = sizeBytes
         self.isSizeComplete = isSizeComplete
+        self.identity = identity
     }
 }
 
