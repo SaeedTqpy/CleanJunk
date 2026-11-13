@@ -146,6 +146,23 @@ final class WorkbenchModel: ObservableObject {
         }
     }
 
+    func restoreOperation(_ operation: CleanupOperation) async {
+        guard !trashing, !scanning else { return }
+        trashing = true
+        errorMessage = nil
+        defer { trashing = false }
+        do {
+            try await executor.restore(operation.id)
+            notice = "Item restored to its original location."
+            await loadHistory()
+            await refresh()
+        } catch {
+            errorMessage = "Restore was not completed: " + error.localizedDescription +
+                ". If the original path is occupied or Trash is on another volume, restore manually in Finder."
+            await loadHistory()
+        }
+    }
+
     func reveal(_ item: ScanItem) {
         NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: item.path)])
     }
