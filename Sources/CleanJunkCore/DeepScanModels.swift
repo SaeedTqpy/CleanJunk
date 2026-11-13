@@ -230,6 +230,13 @@ public enum DeepStorageClassifier {
             return result(.applicationCache, .investigate, component,
                           "App-owned cache; rebuildability and active usage depend on the owning application.")
         }
+        if inside(relativeHome, "Library/Preferences") ||
+           inside(relativeHome, "Library/HTTPStorages") ||
+           inside(relativeHome, "Library/WebKit") ||
+           inside(relativeHome, "Library/Cookies") {
+            return result(.applicationData, .preserve, "Application settings or sessions",
+                          "Preferences, web sessions and app stores can contain authentication or irreplaceable user state.")
+        }
         if inside(relativeHome, "Library/Logs/DiagnosticReports") {
             return result(.diagnostic, .investigate, "Diagnostic reports",
                           "Crash reports may be valuable for debugging current issues.")
