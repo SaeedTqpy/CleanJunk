@@ -4,9 +4,12 @@ import XCTest
 
 final class SafeTrashMoverTests: XCTestCase {
     private func fixture() throws -> (home: URL, file: URL, item: ScanItem) {
-        let home = FileManager.default.temporaryDirectory
-            .appendingPathComponent("CleanJunkMove-\(UUID().uuidString)")
+        // Descriptor-relative symlink protection must reject system temporary paths
+        // with intermediary symbolic links. Test valid cleanup under a real user
+        // home ancestor, which is the supported production scope.
+        let home = FileManager.default.homeDirectoryForCurrentUser
             .resolvingSymlinksInPath()
+            .appendingPathComponent("CleanJunkMove-\(UUID().uuidString)")
         let root = home.appendingPathComponent("Library/Caches")
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         let file = root.appendingPathComponent("fixture.bin")
