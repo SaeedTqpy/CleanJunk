@@ -45,6 +45,10 @@ public actor DeepStorageScanner {
                                         attributes: [.posixPermissions: 0o700])
         // Scan results include private paths: restrict directory and database permissions.
         _ = chmod(parent.path, 0o700)
+        let freeAtStart = (try? fileManager.attributesOfFileSystem(forPath: parent.path)[.systemFreeSize] as? NSNumber)?.int64Value ?? 0
+        if freeAtStart > 0 && freeAtStart < 512 * 1_024 * 1_024 {
+            throw DeepScanError.insufficientSpace
+        }
         let pending = parent.appendingPathComponent(".deep-storage-" + UUID().uuidString + ".sqlite")
         var didInstall = false
         var db: DeepScanDatabase? = try DeepScanDatabase(url: pending, create: true)
