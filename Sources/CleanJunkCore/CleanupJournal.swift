@@ -61,6 +61,8 @@ public actor CleanupJournal {
         }
     }
 
+    public func isCorrupted() -> Bool { unreadableExistingJournal }
+
     public func all() -> [CleanupOperation] {
         operations.sorted { $0.startedAt > $1.startedAt }
     }
@@ -78,7 +80,7 @@ public actor CleanupJournal {
 
     public func complete(_ id: UUID, trashPath: String?) throws {
         try modify(id: id, status: .movedToTrash, path: trashPath,
-                   detail: "Moved to Finder Trash. Space is freed only after emptying Trash.")
+                   detail: "Moved to the user's Trash. Space is freed only after emptying Trash.")
     }
 
     public func markRestored(_ id: UUID) throws {
@@ -130,6 +132,8 @@ public actor CleanupExecutor {
         self.removal = RemovalService(home: home)
         self.journal = journal ?? CleanupJournal()
     }
+
+    public func journalIsCorrupted() async -> Bool { await journal.isCorrupted() }
 
     public func operations() async -> [CleanupOperation] {
         await journal.all()
