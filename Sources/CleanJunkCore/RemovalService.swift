@@ -18,11 +18,8 @@ public actor RemovalService {
               FileIdentity.capture(at: url) == recordedIdentity else {
             throw CleanJunkError.pathChanged
         }
-        // Identity is rechecked immediately before Finder's Trash operation.
-        // A fully race-resistant implementation still requires descriptor-relative rename.
-        var destination: NSURL?
-        try fileManager.trashItem(at: url, resultingItemURL: &destination)
-        return TrashRecord(originalPath: url.path, trashPath: (destination as URL?)?.path,
+        let destination = try SafeTrashMover.move(candidate, home: home)
+        return TrashRecord(originalPath: url.path, trashPath: destination.path,
                            sizeBytes: candidate.sizeBytes, category: candidate.category)
     }
 }
