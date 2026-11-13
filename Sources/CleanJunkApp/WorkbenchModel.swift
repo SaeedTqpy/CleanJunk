@@ -8,6 +8,8 @@ final class WorkbenchModel: ObservableObject {
     @Published private(set) var snapshot = ScanSnapshot(items: [], skippedPaths: [])
     @Published private(set) var brew: BrewReport?
     @Published private(set) var workspaceReport: WorkspaceDependencyReport?
+    @Published private(set) var sourceReports: [String: SourceReferenceReport] = [:]
+    @Published private(set) var analyzingSources = Set<String>()
     @Published private(set) var systemStorage: SystemStorageReport?
     @Published private(set) var inspectingSystemStorage = false
     @Published private(set) var inspectingWorkspace = false
@@ -27,6 +29,7 @@ final class WorkbenchModel: ObservableObject {
     private let activity = ActivityLog()
     private let inspector = HomebrewInspector()
     private let workspaceInspector = WorkspaceDependencyInspector()
+    private let sourceInspector = SourceReferenceInspector()
     private let systemInspector = SystemStorageInspector()
 
     var selectedEligible: [ScanItem] {
@@ -86,12 +89,29 @@ final class WorkbenchModel: ObservableObject {
         }
     }
 
+    func analyzeSourceReferences(_ project: WorkspaceProject) async {
+        guard let workspace, project.ecosystem == .node,
+              !analyzingSources.contains(project.manifestPath) else { return }
+        analyzingSources.insert(project.manifestPath)
+        defer { analyzingSources.remove(project.manifestPath) }
+        do {
+            let result = try await sourceInspector.inspect(project: project, workspace: workspace)
+            guard self.workspace == workspace else { return }
+            sourceReports[project.id] = result
+        } catch is CancellationError {
+            notice = "Source analysis cancelled."
+        } catch {
+            errorMessage = "Source analysis failed: " + error.localizedDescription
+        }
+    }
+
     func setWorkspace(_ url: URL) async {
         do {
             try ScanPolicy.validateWorkspace(url, home: FileManager.default.homeDirectoryForCurrentUser)
             workspace = url.standardizedFileURL
             selectedItemPaths = []
             workspaceReport = nil
+            sourceReports = [:]
             await refresh()
             await inspectWorkspace()
         } catch {
@@ -102,6 +122,7 @@ final class WorkbenchModel: ObservableObject {
     func removeWorkspace() async {
         workspace = nil
         workspaceReport = nil
+        sourceReports = [:]
         selectedItemPaths = []
         await refresh()
     }
