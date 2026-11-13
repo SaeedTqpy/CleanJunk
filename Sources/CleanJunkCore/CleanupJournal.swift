@@ -1,8 +1,10 @@
 import Foundation
+import Darwin
 
 public enum CleanupOperationState: String, Codable, Sendable {
     case prepared
     case movedToTrash
+    case restored
     case failed
     case requiresReconciliation
 }
@@ -80,6 +82,11 @@ public actor CleanupJournal {
                    detail: "Moved to Finder Trash. Space is freed only after emptying Trash.")
     }
 
+    public func markRestored(_ id: UUID) throws {
+        try modify(id: id, status: .restored, path: nil,
+                   detail: "Restored to original location with no overwrite.")
+    }
+
     public func markForReconciliation(_ id: UUID, reason: String) throws {
         try modify(id: id, status: .requiresReconciliation, path: nil, detail: reason)
     }
@@ -127,6 +134,34 @@ public actor CleanupExecutor {
 
     public func operations() async -> [CleanupOperation] {
         await journal.all()
+    }
+
+    public func restore(_ operationID: UUID) async throws {
+        guard let operation = await journal.all().first(where: { $0.id == operationID }),
+              operation.state == .movedToTrash,
+              let recordedTrashPath = operation.trashPath else {
+            throw CleanJunkError.unsupportedOperation
+        }
+
+        let source = URL(fileURLWithPath: recordedTrashPath).standardizedFileURL
+        let original = URL(fileURLWithPath: operation.sourcePath).standardizedFileURL
+        let homeTrash = home.appendingPathComponent(".Trash", isDirectory: true)
+        guard ScanPolicy.isStrictDescendant(source, of: homeTrash),
+              source.resolvingSymlinksInPath() == source,
+              original.resolvingSymlinksInPath() == original,
+              original.deletingLastPathComponent().resolvingSymlinksInPath() == original.deletingLastPathComponent(),
+              FileIdentity.capture(at: source) == operation.scannedIdentity else {
+            throw CleanJunkError.pathChanged
+        }
+
+        // lstat detects a dangling destination symlink too; never overwrite.
+        var existing = stat()
+        guard lstat(original.path, &existing) != 0, errno == ENOENT else {
+            throw CleanJunkError.alreadyExists
+        }
+        try FileManager.default.moveItem(at: source, to: original)
+        // A journal write failure is deliberately reported, so the user can reconcile it.
+        try await journal.markRestored(operationID)
     }
 
     public func trash(_ candidate: ScanItem, workspace: URL?) async throws -> CleanupExecutionResult {
