@@ -19,8 +19,13 @@
 
 **GitHub Actions is manual-only.** Pushes and pull requests do not run CI. To validate a batch of changes, open Actions → **Manual macOS 26 Build and Tests** → Run workflow. Leave `publish_preview` **off** for tests and packaging only; turn it on only when a downloadable ad-hoc-signed ZIP and SHA-256 file are intentionally required. Preview releases avoid the exhausted Actions artifact quota, but publishing still uses macOS runner minutes. No workflow has been run for changes added after the initial tested foundation.
 
-Locally with Xcode 26 toolchain on a macOS 26 machine:
+For rapid local checks that consume **zero GitHub Actions minutes**, run:
 
+    bash scripts/check-core.sh
+
+Locally with the Xcode 26 toolchain on a macOS 26 machine:
+
+    bash scripts/check-core.sh --test
     swift test
     bash scripts/package-app.sh release
     open dist/CleanJunk.app
