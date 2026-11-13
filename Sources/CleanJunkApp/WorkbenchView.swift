@@ -95,7 +95,7 @@ struct WorkbenchView: View {
                             }
                             .buttonStyle(.glassProminent)
                             .tint(CJStyle.mint)
-                            .disabled(model.trashing)
+                            .disabled(model.trashing || model.scanning)
                         }
                     }
                 }
