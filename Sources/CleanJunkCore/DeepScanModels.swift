@@ -186,6 +186,17 @@ public enum DeepStorageClassifier {
                             : "App sandbox data can include documents, accounts and databases. Never classify as disposable.")
         }
 
+        if inside(relativeHome, "Library/Developer/CoreSimulator") ||
+           inside(relativeHome, "Library/Developer/Xcode/Archives") ||
+           inside(relativeHome, "Library/Android/sdk") {
+            return result(.applicationData, .preserve, "Developer SDK or simulator",
+                          "SDK installations, simulator user state and signed archives are never removable as ordinary cache files.")
+        }
+        if inside(relativeHome, "Library/CloudStorage") ||
+           inside(relativeHome, "Library/Mobile Documents") {
+            return result(.userContent, .preserve, "Cloud-synced user files",
+                          "Cloud storage can contain unique or synchronized documents; never treat as cache.")
+        }
         if inside(relativeHome, "Library/Application Support") {
             let parts = relativeHome.split(separator: "/").map(String.init)
             let owner = parts.count > 2 ? parts[2] : "Application Support"
