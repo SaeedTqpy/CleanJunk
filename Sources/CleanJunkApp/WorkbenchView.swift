@@ -69,7 +69,7 @@ struct WorkbenchView: View {
         } detail: {
             Group {
                 switch selection ?? .overview {
-                case .overview: OverviewPage(model: model, browse: { selection = .explorer })
+                case .overview: OverviewPage(model: model, browse: { selection = .explorer }, deepScan: { selection = .deep })
                 case .explorer: ArtifactPage(model: model, filter: nil)
                 case .deep: DeepStoragePage(model: model, reviewCaches: { selection = .explorer })
                 case .system: SystemDataPage(model: model)
