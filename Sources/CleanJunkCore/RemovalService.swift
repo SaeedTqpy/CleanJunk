@@ -18,7 +18,7 @@ public actor RemovalService {
               FileIdentity.capture(at: url) == recordedIdentity else {
             throw CleanJunkError.pathChanged
         }
-        let destination = try SafeTrashMover.move(candidate, home: home)
+        let destination = try SafeTrashMover.move(candidate, home: home, workspace: workspace)
         return TrashRecord(originalPath: url.path, trashPath: destination.path,
                            sizeBytes: candidate.sizeBytes, category: candidate.category)
     }
