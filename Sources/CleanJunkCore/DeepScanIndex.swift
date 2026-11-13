@@ -246,7 +246,7 @@ final class DeepScanDatabase {
 public actor DeepScanIndex {
     public let databaseURL: URL
 
-    public init(databaseURL: URL = Self.defaultDatabaseURL) {
+    public init(databaseURL: URL = DeepScanIndex.defaultDatabaseURL) {
         self.databaseURL = databaseURL
     }
 
