@@ -8,7 +8,8 @@ import Darwin
 /// AND rename the name in one syscall. Other processes writing the same parent
 /// can still race the last identity check, so deletion is never unattended.
 public enum SafeTrashMover {
-    public static func move(_ item: ScanItem, home: URL) throws -> URL {
+    public static func move(_ item: ScanItem, home: URL, workspace: URL? = nil) throws -> URL {
+        try ScanPolicy.validateRemoval(item, home: home, workspace: workspace)
         guard let expected = item.identity, item.isTrashEligible else {
             throw CleanJunkError.forbiddenPath
         }
