@@ -1,11 +1,11 @@
 name: Manual macOS 26 Build and Tests
 
-# Never run on push or PR: this workflow is intentionally manual to protect quota.
+# Zero runner minutes on ordinary commits and pull requests.
 on:
   workflow_dispatch:
     inputs:
       publish_preview:
-        description: "Publish an ad-hoc signed preview to GitHub Releases"
+        description: "Upload an ad-hoc signed app to a GitHub prerelease (no Apple account needed)"
         required: true
         default: false
         type: boolean
@@ -19,49 +19,39 @@ concurrency:
 
 jobs:
   validate:
-    name: Swift tests and app bundle
+    name: Swift test, package, optional prerelease
     runs-on: macos-26
-    timeout-minutes: 40
+    timeout-minutes: 45
+    permissions:
+      contents: write
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - name: Toolchain
+      - name: Confirm toolchain
         run: |
           swift --version
           xcodebuild -version
-      - name: Test core
+      - name: Test project
         run: swift test --parallel
-      - name: Build application
+      - name: Package app once
         run: bash scripts/package-app.sh release
-      - name: Verify bundle
+      - name: Verify app and archive
         run: |
           test -x dist/CleanJunk.app/Contents/MacOS/CleanJunk
           plutil -lint dist/CleanJunk.app/Contents/Info.plist
           codesign --verify --strict --verbose=2 dist/CleanJunk.app
           (cd dist && shasum -a 256 -c *.sha256)
-
-  publish:
-    name: Explicit private preview
-    needs: validate
-    if: ${{ inputs.publish_preview == true }}
-    permissions:
-      contents: write
-    runs-on: macos-26
-    timeout-minutes: 30
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-      - name: Build and package
-        run: bash scripts/package-app.sh release
-      - name: Publish prerelease (no Actions artifact quota)
+      - name: Publish test-only build (explicit opt in)
+        if: ${{ inputs.publish_preview == true }}
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          set -euo pipefail
           TAG="preview-$(printf '%s' "$GITHUB_SHA" | cut -c1-12)"
           if ! gh release view "$TAG" >/dev/null 2>&1; then
             gh release create "$TAG" --target "$GITHUB_SHA" --prerelease \
-              --title "CleanJunk development preview $TAG" \
-              --notes "Internal macOS 26 build. Ad-hoc signed; not Apple notarized."
+              --title "CleanJunk ad-hoc developer preview $TAG" \
+              --notes "Unsigned-for-distribution developer preview (ad-hoc signed). No Developer ID or Apple notarization. Gatekeeper may block it. Test on disposable data first."
           fi
           gh release upload "$TAG" dist/*.zip dist/*.sha256 --clobber
           gh release view "$TAG" --json url --jq .url
