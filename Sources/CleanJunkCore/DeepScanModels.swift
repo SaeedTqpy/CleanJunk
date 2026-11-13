@@ -97,6 +97,7 @@ public enum DeepScanError: LocalizedError, Sendable {
     case invalidRoot
     case sqlite(String)
     case missingIndex
+    case insufficientSpace
 
     public var errorDescription: String? {
         switch self {
