@@ -34,6 +34,15 @@ struct DeepStoragePage: View {
                 if let summary = model.deepSummary {
                     summaryCards(summary)
                     categoryBreakdown(summary)
+                    HStack {
+                        Button(action: reviewCaches) {
+                            Label("Review approved cache scopes", systemImage: "checkmark.shield")
+                        }
+                        .buttonStyle(.glassProminent)
+                        Spacer()
+                        Text("The forensic index itself never authorizes deletion.")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
                     macOSReceipts
                     indexedFiles
                     coverage(summary)
