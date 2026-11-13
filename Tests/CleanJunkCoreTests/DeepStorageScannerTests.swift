@@ -120,7 +120,8 @@ final class DeepStorageScannerTests: XCTestCase {
         let index = DeepScanIndex(databaseURL: f.database)
         let filtered = try await index.search("", advice: .rebuildable,
                                               category: .developerCache)
-        XCTAssertEqual(filtered.count, 1)
+        XCTAssertTrue(filtered.contains { $0.name == "hash" && !$0.isDirectory })
+        XCTAssertTrue(filtered.contains { $0.name == "_cacache" && $0.isDirectory })
         let export = f.home.deletingLastPathComponent().appendingPathComponent("inventory.csv")
         try await index.exportCSV(to: export)
         let contents = try String(contentsOf: export, encoding: .utf8)
