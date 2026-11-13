@@ -134,8 +134,10 @@ public enum DeepStorageClassifier {
             if matches(standardized, root) {
                 if matches(standardized, "/opt/homebrew/Cellar") ||
                     matches(standardized, "/opt/homebrew/Caskroom") {
-                    return result(.installedPackage, .preserve, "Homebrew",
-                                  "Installed package managed by Homebrew; removal requires dependency-aware package manager actions.")
+                    let parts = standardized.split(separator: "/")
+                    let package = parts.count > 3 ? String(parts[3]) : "Homebrew"
+                    return result(.installedPackage, .preserve, package,
+                                  "Installed Homebrew formula or cask; uninstall only through Homebrew after dependency review.")
                 }
                 return result(.system, .preserve, "macOS",
                               "System-level or shared machine data must not be removed by this app.")
@@ -143,8 +145,10 @@ public enum DeepStorageClassifier {
         }
 
         if standardized == "/Applications" || standardized.hasPrefix("/Applications/") {
-            return result(.application, .preserve, "Applications",
-                          "Installed applications and their bundles are not temporary caches.")
+            let app = standardized.split(separator: "/")
+                .first(where: { $0.hasSuffix(".app") }).map(String.init) ?? "Applications"
+            return result(.application, .preserve, app,
+                          "Installed applications and their bundle contents are not temporary caches.")
         }
         if standardized.hasPrefix("/opt/") || standardized.hasPrefix("/usr/local/") {
             return result(.installedPackage, .preserve, "System package or tool",
@@ -173,7 +177,9 @@ public enum DeepStorageClassifier {
         }
 
         if inside(relativeHome, "Library/Application Support") {
-            return result(.applicationData, .preserve, "Application Support",
+            let parts = relativeHome.split(separator: "/").map(String.init)
+            let owner = parts.count > 2 ? parts[2] : "Application Support"
+            return result(.applicationData, .preserve, owner,
                           "Application Support can contain databases, settings, licenses and authentication material.")
         }
         if inside(relativeHome, "Library/Mail") ||
@@ -215,13 +221,24 @@ public enum DeepStorageClassifier {
         }
 
         if segments.contains("node_modules") ||
+            segments.contains("site-packages") ||
             segments.contains(".venv") ||
             segments.contains("venv") ||
             segments.contains("target") ||
             segments.contains(".gradle") {
-            let packageOwner = segments.contains("node_modules") ? "Node.js" :
-                (segments.contains("target") ? "Rust" :
-                    (segments.contains(".gradle") ? "Gradle" : "Python"))
+            var packageOwner = segments.contains("site-packages") ? "Python packages" :
+                (segments.contains("node_modules") ? "Node.js" :
+                    (segments.contains("target") ? "Rust" :
+                        (segments.contains(".gradle") ? "Gradle" : "Python")))
+            if let index = segments.firstIndex(of: "node_modules"),
+               segments.count > index + 1 {
+                let first = segments[index + 1]
+                if first.hasPrefix("@"), segments.count > index + 2 {
+                    packageOwner = first + "/" + segments[index + 2]
+                } else {
+                    packageOwner = first
+                }
+            }
             return result(.installedPackage, .investigate, packageOwner,
                           "Installed dependencies or build outputs may be referenced by active projects and offline builds.")
         }
