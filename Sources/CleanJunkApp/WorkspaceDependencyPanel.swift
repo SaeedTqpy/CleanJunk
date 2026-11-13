@@ -119,6 +119,48 @@ struct WorkspaceDependencyPanel: View {
                     }
                 }
             }
+            if project.ecosystem == .node && !project.dependencies.isEmpty {
+                Divider()
+                HStack {
+                    Text("Static import analysis")
+                        .font(.caption.weight(.semibold))
+                    Spacer()
+                    if model.analyzingSources.contains(project.manifestPath) {
+                        ProgressView().controlSize(.small)
+                    }
+                    Button {
+                        Task { await model.analyzeSourceReferences(project) }
+                    } label: {
+                        Label("Analyze imports", systemImage: "text.magnifyingglass")
+                    }
+                    .buttonStyle(.glass)
+                    .disabled(model.analyzingSources.contains(project.manifestPath))
+                }
+                if let result = model.sourceReports[project.id] {
+                    HStack(spacing: 9) {
+                        Pill(symbol: "checkmark.circle",
+                             text: "\(result.evidence.filter { $0.status == .observed }.count) observed",
+                             tint: CJStyle.mint)
+                        Pill(symbol: "questionmark.circle",
+                             text: "\(result.notObservedRuntimeCount) not observed",
+                             tint: CJStyle.amber)
+                        Text("\(result.inspectedSourceFiles) files scanned")
+                            .font(.caption2).foregroundStyle(.secondary)
+                    }
+                    ForEach(result.evidence.filter { $0.status == .notObserved }.prefix(10)) { item in
+                        Label(item.dependency.name + " — no static import observed",
+                              systemImage: "questionmark.circle")
+                            .font(.caption2).foregroundStyle(CJStyle.amber)
+                    }
+                    if !result.isComplete {
+                        Label("Incomplete source analysis: absence cannot be inferred.",
+                              systemImage: "exclamationmark.triangle")
+                            .font(.caption2).foregroundStyle(CJStyle.amber)
+                    }
+                    Text("Not observed is not unused: imports cannot detect CLI scripts, build plugins, runtime loading, or config-only usage. Never automatically uninstall from this list.")
+                        .font(.caption2).foregroundStyle(.secondary)
+                }
+            }
             ForEach(project.notes.prefix(2), id: \.self) { note in
                 Text(note).font(.caption2).foregroundStyle(.secondary)
             }
