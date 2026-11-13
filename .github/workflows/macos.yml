@@ -38,6 +38,7 @@ jobs:
           test -x dist/CleanJunk.app/Contents/MacOS/CleanJunk
           plutil -lint dist/CleanJunk.app/Contents/Info.plist
           codesign --verify --strict --verbose=2 dist/CleanJunk.app
+          (cd dist && shasum -a 256 -c *.sha256)
 
   publish:
     name: Explicit private preview
