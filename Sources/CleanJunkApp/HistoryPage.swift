@@ -43,6 +43,16 @@ struct HistoryPage: View {
                 }
             }
 
+            if model.journalCorrupted {
+                Label("Cleanup journal cannot be decoded. Operations are disabled to avoid overwriting audit history. Back up the existing journal and investigate before continuing.",
+                      systemImage: "exclamationmark.shield.fill")
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(CJStyle.amber)
+                    .padding(10)
+                    .background(CJStyle.amber.opacity(0.10),
+                                in: RoundedRectangle(cornerRadius: 12))
+            }
+
             if model.cleanupOperations.isEmpty {
                 ContentUnavailableView("No cleanup operations", systemImage: "clock",
                                        description: Text("Approved operations will appear here, including interrupted transactions."))
