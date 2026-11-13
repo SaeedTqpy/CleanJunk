@@ -110,7 +110,7 @@ final class WorkbenchModel: ObservableObject {
     }
 
     func trashSelected() async {
-        guard !trashing, !selectedEligible.isEmpty else { return }
+        guard !trashing, !scanning, !selectedEligible.isEmpty else { return }
         trashing = true
         errorMessage = nil
         notice = nil
