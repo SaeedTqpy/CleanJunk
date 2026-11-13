@@ -1,0 +1,111 @@
+name: Manual Developer ID Release
+
+# Never triggered by a push, pull request, or tag.
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release candidate tag (e.g. v0.9.0-rc.1)"
+        required: true
+        default: "v0.9.0-rc.1"
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cleanjunk-sign-and-notarize
+  cancel-in-progress: false
+
+jobs:
+  notarized-release:
+    runs-on: macos-26
+    timeout-minutes: 70
+    permissions:
+      contents: write
+    steps:
+      - name: Source
+        uses: actions/checkout@v4
+      - name: Validate version input
+        env:
+          VERSION: ${ inputs.version }}
+        run: |
+          if [[ ! "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-rc\.[0-9]+)?${]]; then
+            echo "Invalid release tag" >&2
+            exit 1
+          fi
+      - name: Ensure signing secrets exist
+        env:
+          CERT: ${ secrets.APPLE_DEVELOPER_ID_P12_BASE64 }}
+          CERT_PASSWORD: ${ secrets.APPLE_DEVELOPER_ID_P12_PASSWORD }}
+          SIGN_IDENTITY: ${ secrets.APPLE_DEVELOPER_ID_IDENTITY }}
+          NOTARY_KEY: ${ secrets.APPSTORE_CONNECT_API_KEY_P8 }}
+          NOTARY_KEY_ID: ${ secrets.APPSTORE_CONNECT_KEY_ID }}
+          NOTARY_ISSUER: ${ secrets.APPSTORE_CONNECT_ISSUER_ID }}
+        run: |
+          for field in CERT CERT_PASSWORD SIGN_IDENTITY NOTARY_KEY NOTARY_KEY_ID NOTARY_ISSUER; do
+            if [[ -z "${!field}" ]]; then
+              echo "Missing release secret: $field" >&2
+              exit 1
+            fi
+          done
+      - name: Validate and package
+        run: |
+          swift test --parallel
+          bash scripts/package-app.sh release
+      - name: Import temporary Developer ID identity and sign
+        env:
+          CERT_P12_BASE64: ${ secrets.APPLE_DEVELOPER_ID_P12_BASE64 }}
+          CERT_PASSWORD: ${ secrets.APPLE_DEVELOPER_ID_P12_PASSWORD }}
+          SIGN_IDENTITY: ${ secrets.APPLE_DEVELOPER_ID_IDENTITY }}
+        run: |
+          set -euo pipefail
+          CERT_FILE="$RUNNER_TEMP/cleanjunk-signing.p12"
+          KEYCHAIN="$RUNNER_TEMP/cleanjunk-signing.keychain-db"
+          KEYCHAIN_PASSWORD="$(openssl rand -base64 30)"
+          printf '%s' "$CERT_P12_BASE64" | base64 -D > "$CERT_FILE"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security import "$CERT_FILE" -P "$CERT_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN"
+          security list-keychains -d user -s "$KEYCHAIN"
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          codesign --force --options runtime --timestamp \
+            --sign "$SIGN_IDENTITY" --keychain "$KEYCHAIN" dist/CleanJunk.app
+          codesign --verify --deep --strict --verbose=2 dist/CleanJunk.app
+          rm -f "$CERT_FILE"
+          security delete-keychain "$KEYCHAIN"
+      - name: Notarize with App Store Connect API key and staple
+        env:
+          NOTARY_P8: ${ secrets.APPSTORE_CONNECT_API_KEY_P8 }}
+          NOTARY_KEY_ID: ${ secrets.APPSTORE_CONNECT_KEY_ID }}
+          NOTARY_ISSUER: ${ secrets.APPSTORE_CONNECT_ISSUER_ID }}
+        run: |
+          set -euo pipefail
+          KEY_FILE="$RUNNER_TEMP/AuthKey_${NOTARY_KEY_ID }.p8"
+          printf '%s' "$NOTARY_P8" > "$KEY_FILE"
+          ZIP="$RUNNER_TEMP/CleanJunk-for-notary.zip"
+          ditto -c -k --sequesterRsrc --keepParent dist/CleanJunk.app "$ZIP"
+          xcrun notarytool submit "$ZIP" --key "$KEY_FILE" \
+            --key-id "$NOTARY_KEY_ID" --issuer "$NOTARY_ISSUER" --wait
+          xcrun stapler staple dist/CleanJunk.app
+          xcrun stapler validate dist/CleanJunk.app
+          spctl --assess --type execute --verbose=2 dist/CleanJunk.app
+          rm -f "$KEY_FILE" "$ZIP"
+      - name: Assemble notarized ZIP
+        env:
+          VERSION: ${ inputs.version }}
+        run: |
+          set -euo pipefail
+          ZIP="dist/CleanJunk-${VERSION }-macOS26-arm64-notarized.zip"
+          ditto -c -k --sequesterRsrc --keepParent dist/CleanJunk.app "$ZIP"
+          shasum -a 256 "$ZIP" > "$ZIP.sha256"
+      - name: Create private draft release
+        env:
+          GH_TOKEN: ${ github.token }}
+          VERSION: ${ inputs.version }}
+        run: |
+          gh release create "$VERSION" --draft --prerelease --target "$GITHUB_SHA" \
+            --title "CleanJunk $VERSION" \
+            --notes "Developer ID signed, notarized, and stapled. Device QA and explicit publishing approval are still required."
+          gh release upload "$VERSION" dist/*-notarized.zip dist/*-notarized.zip.sha256
